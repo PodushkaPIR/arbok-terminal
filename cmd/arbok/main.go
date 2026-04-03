@@ -3,6 +3,7 @@ package main
 import (
 	"image/color"
 	"os"
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -298,8 +299,13 @@ func main() {
 
 	buffer := terminal.NewBuffer(initialWidth, initialHeight)
 	parser := terminal.NewParser(buffer, nil)
+
+	var renderMu sync.Mutex
+
 	parser.TitleHandler = func(title string) {
-		window.SetTitle(title)
+		fyne.Do(func() {
+			window.SetTitle(title)
+		})
 	}
 
 	ptym, err := pty.New(os.Getenv("SHELL"), initialWidth, initialHeight)
@@ -321,7 +327,11 @@ func main() {
 	go func() {
 		for data := range ptym.OutputCh {
 			parser.Parse(data)
-			window.Canvas().Refresh(termWidget)
+			renderMu.Lock()
+			fyne.Do(func() {
+				window.Canvas().Refresh(termWidget)
+			})
+			renderMu.Unlock()
 		}
 	}()
 
@@ -329,9 +339,13 @@ func main() {
 		for size := range ptym.SizeCh {
 			cols := int(size.Cols)
 			rows := int(size.Rows)
+			renderMu.Lock()
 			buffer.Resize(cols, rows)
 			ptym.Resize(cols, rows)
-			window.Canvas().Refresh(termWidget)
+			fyne.Do(func() {
+				window.Canvas().Refresh(termWidget)
+			})
+			renderMu.Unlock()
 		}
 	}()
 
@@ -350,16 +364,20 @@ func main() {
 
 		for {
 			<-ticker.C
-			size := window.Canvas().Size()
-			cols, rows := calcTerminalSize(size)
-			if cols != lastCols || rows != lastRows {
-				if cols != buffer.Width || rows != buffer.Height {
-					buffer.Resize(cols, rows)
-					ptym.Resize(cols, rows)
-					window.Canvas().Refresh(termWidget)
+			fyne.Do(func() {
+				size := window.Canvas().Size()
+				cols, rows := calcTerminalSize(size)
+				if cols != lastCols || rows != lastRows {
+					renderMu.Lock()
+					if cols != buffer.Width || rows != buffer.Height {
+						buffer.Resize(cols, rows)
+						ptym.Resize(cols, rows)
+						window.Canvas().Refresh(termWidget)
+					}
+					lastCols, lastRows = cols, rows
+					renderMu.Unlock()
 				}
-				lastCols, lastRows = cols, rows
-			}
+			})
 		}
 	}()
 
