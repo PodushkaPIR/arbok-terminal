@@ -3,6 +3,7 @@ package main
 import (
 	"image/color"
 	"os"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -133,6 +134,8 @@ type TerminalWidget struct {
 	cellWidth  float32
 	cellHeight float32
 	input      *InputHandler
+
+	onResize func(cols, rows int)
 }
 
 func NewTerminalWidget(buffer *terminal.Buffer, input *InputHandler) *TerminalWidget {
@@ -275,12 +278,31 @@ func main() {
 	fyneApp := app.NewWithID("arbok.terminal")
 	window := fyneApp.NewWindow("Arbok Terminal")
 
-	width, height := 80, 24
+	fontSize := float32(14)
+	cellWidth := float32(9)
+	cellHeight := float32(17)
 
-	buffer := terminal.NewBuffer(width, height)
+	calcTerminalSize := func(windowSize fyne.Size) (cols, rows int) {
+		cols = int(float32(windowSize.Width) / cellWidth)
+		rows = int(float32(windowSize.Height) / cellHeight)
+		if cols < 1 {
+			cols = 1
+		}
+		if rows < 1 {
+			rows = 1
+		}
+		return
+	}
+
+	initialWidth, initialHeight := calcTerminalSize(fyne.NewSize(800, 600))
+
+	buffer := terminal.NewBuffer(initialWidth, initialHeight)
 	parser := terminal.NewParser(buffer, nil)
+	parser.TitleHandler = func(title string) {
+		window.SetTitle(title)
+	}
 
-	ptym, err := pty.New(os.Getenv("SHELL"), width, height)
+	ptym, err := pty.New(os.Getenv("SHELL"), initialWidth, initialHeight)
 	if err != nil {
 		panic(err)
 	}
@@ -288,6 +310,9 @@ func main() {
 
 	input := NewInputHandler()
 	termWidget := NewTerminalWidget(buffer, input)
+	termWidget.fontSize = fontSize
+	termWidget.cellWidth = cellWidth
+	termWidget.cellHeight = cellHeight
 
 	input.SetOnInput(func(data []byte) {
 		ptym.Write(data)
@@ -302,10 +327,10 @@ func main() {
 
 	go func() {
 		for size := range ptym.SizeCh {
-			width = int(size.Cols)
-			height = int(size.Rows)
-			buffer.Resize(width, height)
-			ptym.Resize(width, height)
+			cols := int(size.Cols)
+			rows := int(size.Rows)
+			buffer.Resize(cols, rows)
+			ptym.Resize(cols, rows)
 			window.Canvas().Refresh(termWidget)
 		}
 	}()
@@ -317,5 +342,26 @@ func main() {
 	window.Canvas().Focus(termWidget)
 
 	window.Show()
+
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		var lastCols, lastRows int
+
+		for {
+			<-ticker.C
+			size := window.Canvas().Size()
+			cols, rows := calcTerminalSize(size)
+			if cols != lastCols || rows != lastRows {
+				if cols != buffer.Width || rows != buffer.Height {
+					buffer.Resize(cols, rows)
+					ptym.Resize(cols, rows)
+					window.Canvas().Refresh(termWidget)
+				}
+				lastCols, lastRows = cols, rows
+			}
+		}
+	}()
+
 	fyneApp.Run()
 }
