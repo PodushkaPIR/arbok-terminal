@@ -55,14 +55,18 @@ type Parser struct {
 	savedX int
 	savedY int
 
-	handler func(rune, tcell.Color, tcell.Color, Attributes)
+	handler      func(rune, tcell.Color, tcell.Color, Attributes)
+	TitleHandler func(string)
 }
 
 const (
 	stateGround = iota
 	stateEscape
+	stateEscapeIntermediate
 	stateCSI
 	stateCSIParam
+	stateCSIIntermediate
+	stateOSC
 )
 
 func NewParser(buf *Buffer, handler func(rune, tcell.Color, tcell.Color, Attributes)) *Parser {
@@ -88,10 +92,16 @@ func (p *Parser) parseByte(b byte) {
 		p.handleGround(b)
 	case stateEscape:
 		p.handleEscape(b)
+	case stateEscapeIntermediate:
+		p.handleEscapeIntermediate(b)
 	case stateCSI:
 		p.handleCSI(b)
 	case stateCSIParam:
 		p.handleCSIParam(b)
+	case stateCSIIntermediate:
+		p.handleCSIIntermediate(b)
+	case stateOSC:
+		p.handleOSC(b)
 	}
 }
 
@@ -124,29 +134,84 @@ func (p *Parser) handleGround(b byte) {
 }
 
 func (p *Parser) handleEscape(b byte) {
-	p.state = stateGround
-
 	switch b {
 	case '[':
 		p.state = stateCSI
 		p.params = p.params[:0]
+	case ']':
+		p.state = stateOSC
+		p.buf = p.buf[:0]
 	case '7':
 		p.savedX = p.buffer.CursorX
 		p.savedY = p.buffer.CursorY
+		p.state = stateGround
 	case '8':
 		p.buffer.MoveCursor(p.savedX, p.savedY)
+		p.state = stateGround
 	case 'D':
-		// Index - move down and scroll if at bottom
 		p.buffer.MoveDown(1)
+		p.state = stateGround
 	case 'M':
-		// Reverse index - move up
 		p.buffer.MoveUp(1)
+		p.state = stateGround
 	case 'c':
-		// Reset to initial state
 		p.buffer.Clear()
 		p.currentFg = tcell.ColorDefault
 		p.currentBg = tcell.ColorDefault
 		p.currentAttrs = Attributes{}
+		p.state = stateGround
+	case 'P', 'X', '^', '=': // DCS, SOS, PM, APC - ignore until ST
+		p.buf = p.buf[:0]
+		p.state = stateGround
+	default:
+		p.state = stateGround
+	}
+}
+
+func (p *Parser) handleEscapeIntermediate(b byte) {
+	p.state = stateGround
+}
+
+func (p *Parser) handleCSIIntermediate(b byte) {
+	p.state = stateGround
+}
+
+func (p *Parser) handleOSC(b byte) {
+	switch b {
+	case 0x07:
+		p.executeOSC()
+		p.state = stateGround
+	case 0x1B:
+		p.state = stateEscape
+	default:
+		p.buf = append(p.buf, b)
+	}
+}
+
+func (p *Parser) executeOSC() {
+	if len(p.buf) < 2 {
+		return
+	}
+
+	oscType := 0
+	i := 0
+
+	for i < len(p.buf) && p.buf[i] >= '0' && p.buf[i] <= '9' {
+		oscType = oscType*10 + int(p.buf[i]-'0')
+		i++
+	}
+
+	if i < len(p.buf) && p.buf[i] == ';' {
+		i++
+	}
+
+	title := string(p.buf[i:])
+
+	switch oscType {
+	case 0, 1, 2:
+		if p.TitleHandler != nil {
+			p.TitleHandler(title)
+		}
 	}
 }
 
