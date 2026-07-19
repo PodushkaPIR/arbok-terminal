@@ -100,13 +100,16 @@ func (vt *VirtualTerminal) SetMode(mode int, on bool) {
 		if vt.onCursorKeyMode != nil {
 			vt.onCursorKeyMode(on)
 		}
-	case 1049: // Alt screen
+	case 1049: // Alt screen with cursor save/restore
 		if on && !vt.modes.AltScreen {
-			vt.main.CursorX, vt.main.CursorY = 0, 0
+			vt.main.SavedX = vt.main.CursorX
+			vt.main.SavedY = vt.main.CursorY
+			vt.alt.clear()
 			vt.modes.AltScreen = true
 		} else if !on && vt.modes.AltScreen {
 			vt.modes.AltScreen = false
-			vt.alt.CursorX, vt.alt.CursorY = 0, 0
+			vt.main.CursorX = vt.main.SavedX
+			vt.main.CursorY = vt.main.SavedY
 		}
 	case 1048: // Save cursor
 		s := vt.CurrentScreen()
@@ -119,11 +122,9 @@ func (vt *VirtualTerminal) SetMode(mode int, on bool) {
 		}
 	case 1047: // Alt screen (no cursor save)
 		if on && !vt.modes.AltScreen {
-			vt.main.CursorX, vt.main.CursorY = 0, 0
 			vt.modes.AltScreen = true
 		} else if !on && vt.modes.AltScreen {
 			vt.modes.AltScreen = false
-			vt.alt.CursorX, vt.alt.CursorY = 0, 0
 		}
 	case 25: // Cursor visible
 		vt.modes.CursorVisible = on

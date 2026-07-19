@@ -33,8 +33,9 @@ func TestVirtualTerminal_altScreen(t *testing.T) {
 	vt := NewVirtualTerminal(80, 24)
 
 	vt.Lock()
-	vt.SetMode(1049, true)
 	vt.WriteChar('A', ColorDefault, ColorDefault, Attributes{})
+	vt.SetMode(1049, true)
+	vt.WriteChar('B', ColorDefault, ColorDefault, Attributes{})
 	vt.Unlock()
 
 	assert.Equal(t, vt.alt, vt.CurrentScreen())
@@ -44,6 +45,30 @@ func TestVirtualTerminal_altScreen(t *testing.T) {
 	vt.Unlock()
 
 	assert.Equal(t, vt.main, vt.CurrentScreen())
+}
+
+func TestVirtualTerminal_altScreen_cursorSaveRestore(t *testing.T) {
+	vt := NewVirtualTerminal(80, 24)
+
+	vt.Lock()
+	vt.WriteChar('M', ColorDefault, ColorDefault, Attributes{})
+	vt.WriteChar('A', ColorDefault, ColorDefault, Attributes{})
+	vt.WriteChar('I', ColorDefault, ColorDefault, Attributes{})
+	// cursor now at (3, 0) on main screen
+	vt.SetMode(1049, true)
+	vt.WriteChar('X', ColorDefault, ColorDefault, Attributes{})
+	vt.Unlock()
+
+	// main screen cursor should be saved at (3, 0)
+	assert.Equal(t, 3, vt.main.SavedX)
+	assert.Equal(t, 0, vt.main.SavedY)
+
+	vt.Lock()
+	vt.SetMode(1049, false)
+	// cursor should be restored on main screen
+	assert.Equal(t, 3, vt.main.CursorX)
+	assert.Equal(t, 0, vt.main.CursorY)
+	vt.Unlock()
 }
 
 func TestVirtualTerminal_altScreen_cursorIndependence(t *testing.T) {
