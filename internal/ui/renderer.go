@@ -16,6 +16,9 @@ type TerminalRenderer struct {
 	cellRects [][]*canvas.Rectangle
 	cellTexts [][]*canvas.Text
 	objects   []fyne.CanvasObject
+
+	prevGrid   [][]terminal.Cell
+	prevW, prevH int
 }
 
 func newRenderer(tw *TerminalWidget) *TerminalRenderer {
@@ -43,9 +46,14 @@ func (r *TerminalRenderer) buildCache() {
 	r.objects = make([]fyne.CanvasObject, 0, 1+h*w*2)
 	r.objects = append(r.objects, r.bg)
 
+	r.prevGrid = make([][]terminal.Cell, h)
+	r.prevW = w
+	r.prevH = h
+
 	for y := 0; y < h; y++ {
 		r.cellRects[y] = make([]*canvas.Rectangle, w)
 		r.cellTexts[y] = make([]*canvas.Text, w)
+		r.prevGrid[y] = make([]terminal.Cell, w)
 		for x := 0; x < w; x++ {
 			rect := canvas.NewRectangle(color.RGBA{0, 0, 0, 255})
 			text := canvas.NewText(" ", color.White)
@@ -66,18 +74,11 @@ func (r *TerminalRenderer) Layout(size fyne.Size) {
 	screen := r.widget.vt.CurrentScreen()
 	h := screen.Height
 	w := screen.Width
-	cacheH := len(r.cellTexts)
-	cacheW := 0
-	if cacheH > 0 {
-		cacheW = len(r.cellTexts[0])
-	}
 
-	if cacheH != h || (cacheH > 0 && cacheW != w) {
+	if r.prevH != h || r.prevW != w {
 		r.buildCache()
-		h = len(r.cellTexts)
-		if h > 0 {
-			w = len(r.cellTexts[0])
-		}
+		h = r.prevH
+		w = r.prevW
 	}
 
 	r.bg.Resize(size)
@@ -115,18 +116,11 @@ func (r *TerminalRenderer) Refresh() {
 	screen := r.widget.vt.CurrentScreen()
 	h := screen.Height
 	w := screen.Width
-	cacheH := len(r.cellTexts)
-	cacheW := 0
-	if cacheH > 0 {
-		cacheW = len(r.cellTexts[0])
-	}
 
-	if cacheH != h || (cacheH > 0 && cacheW != w) {
+	if r.prevH != h || r.prevW != w {
 		r.buildCache()
-		h = len(r.cellTexts)
-		if h > 0 {
-			w = len(r.cellTexts[0])
-		}
+		h = r.prevH
+		w = r.prevW
 	}
 
 	bgDef := theme.Color(theme.ColorNameBackground)
@@ -134,6 +128,11 @@ func (r *TerminalRenderer) Refresh() {
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			cell := screen.Grid[y][x]
+			prev := r.prevGrid[y][x]
+
+			if cell == prev {
+				continue
+			}
 
 			if cell.Background == terminal.ColorDefault {
 				r.cellRects[y][x].FillColor = bgDef
@@ -151,11 +150,15 @@ func (r *TerminalRenderer) Refresh() {
 			} else {
 				r.cellTexts[y][x].Color = ColorToRGBA(cell.Foreground, bgDef)
 			}
+
+			r.cellRects[y][x].Refresh()
+			r.cellTexts[y][x].Refresh()
+
+			r.prevGrid[y][x] = cell
 		}
 	}
 
 	r.bg.Refresh()
-	canvas.Refresh(r.widget)
 }
 
 func (r *TerminalRenderer) Destroy() {}

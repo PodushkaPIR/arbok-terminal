@@ -2,6 +2,8 @@ package main
 
 import (
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -49,6 +51,14 @@ func main() {
 	}
 	defer ptym.Close()
 
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		ptym.Close()
+		os.Exit(0)
+	}()
+
 	inputH.SetOnInput(func(data []byte) { ptym.Write(data) })
 
 	refreshCh := make(chan struct{}, 1)
@@ -59,9 +69,11 @@ func main() {
 			if title := vt.PendingTitle(); title != "" {
 				parser.SetTitle(title)
 			}
-			select {
-			case refreshCh <- struct{}{}:
-			default:
+			if vt.IsDirty() {
+				select {
+				case refreshCh <- struct{}{}:
+				default:
+				}
 			}
 		}
 	}()
@@ -93,6 +105,7 @@ func main() {
 
 	go func() {
 		for range refreshCh {
+			vt.ClearDirty()
 			fyne.Do(func() {
 				termWidget.Refresh()
 				window.Canvas().Refresh(termWidget)
