@@ -163,30 +163,84 @@ func TestScreen_clear(t *testing.T) {
 	}
 }
 
-func TestScreen_clearToEnd(t *testing.T) {
+func TestScreen_clearToEndOfLine(t *testing.T) {
 	s := NewScreen(5, 3)
 	s.writeChar('A', ColorDefault, ColorDefault, Attributes{})
 	s.writeChar('B', ColorDefault, ColorDefault, Attributes{})
 	s.writeChar('C', ColorDefault, ColorDefault, Attributes{})
 
 	s.CursorX = 1
-	s.clearToEnd()
+	s.clearToEndOfLine()
 	assert.Equal(t, 'A', s.Grid[0][0].Char)
 	assert.Equal(t, defaultCell, s.Grid[0][1])
 	assert.Equal(t, defaultCell, s.Grid[0][2])
 }
 
-func TestScreen_clearToBeginning(t *testing.T) {
+func TestScreen_clearToBeginningOfLine(t *testing.T) {
 	s := NewScreen(5, 3)
 	s.writeChar('A', ColorDefault, ColorDefault, Attributes{})
 	s.writeChar('B', ColorDefault, ColorDefault, Attributes{})
 	s.writeChar('C', ColorDefault, ColorDefault, Attributes{})
 
 	s.CursorX = 1
-	s.clearToBeginning()
+	s.clearToBeginningOfLine()
 	assert.Equal(t, defaultCell, s.Grid[0][0])
 	assert.Equal(t, defaultCell, s.Grid[0][1])
 	requireCellChar(t, s, 2, 0, 'C')
+}
+
+func TestScreen_clearToEndOfScreen(t *testing.T) {
+	s := NewScreen(5, 3)
+	s.writeChar('A', ColorDefault, ColorDefault, Attributes{})
+	s.writeChar('B', ColorDefault, ColorDefault, Attributes{})
+	s.writeChar('C', ColorDefault, ColorDefault, Attributes{})
+	s.newline()
+	s.writeChar('D', ColorDefault, ColorDefault, Attributes{})
+	s.writeChar('E', ColorDefault, ColorDefault, Attributes{})
+	s.newline()
+	s.writeChar('F', ColorDefault, ColorDefault, Attributes{})
+	s.writeChar('G', ColorDefault, ColorDefault, Attributes{})
+
+	s.CursorX = 1
+	s.CursorY = 1
+	s.clearToEndOfScreen()
+
+	assert.Equal(t, 'A', s.Grid[0][0].Char)
+	assert.Equal(t, 'B', s.Grid[0][1].Char)
+	assert.Equal(t, 'C', s.Grid[0][2].Char)
+	assert.Equal(t, 'D', s.Grid[1][0].Char)
+	assert.Equal(t, defaultCell, s.Grid[1][1])
+	assert.Equal(t, defaultCell, s.Grid[1][2])
+	for x := 0; x < s.Width; x++ {
+		assert.Equal(t, defaultCell, s.Grid[2][x])
+	}
+}
+
+func TestScreen_clearToBeginningOfScreen(t *testing.T) {
+	s := NewScreen(5, 3)
+	s.writeChar('A', ColorDefault, ColorDefault, Attributes{})
+	s.writeChar('B', ColorDefault, ColorDefault, Attributes{})
+	s.writeChar('C', ColorDefault, ColorDefault, Attributes{})
+	s.newline()
+	s.writeChar('D', ColorDefault, ColorDefault, Attributes{})
+	s.writeChar('E', ColorDefault, ColorDefault, Attributes{})
+	s.writeChar('X', ColorDefault, ColorDefault, Attributes{})
+	s.newline()
+	s.writeChar('F', ColorDefault, ColorDefault, Attributes{})
+	s.writeChar('G', ColorDefault, ColorDefault, Attributes{})
+
+	s.CursorX = 1
+	s.CursorY = 1
+	s.clearToBeginningOfScreen()
+
+	for x := 0; x < s.Width; x++ {
+		assert.Equal(t, defaultCell, s.Grid[0][x])
+	}
+	assert.Equal(t, defaultCell, s.Grid[1][0])
+	assert.Equal(t, defaultCell, s.Grid[1][1])
+	requireCellChar(t, s, 2, 1, 'X')
+	requireCellChar(t, s, 0, 2, 'F')
+	requireCellChar(t, s, 1, 2, 'G')
 }
 
 func TestScreen_clearLine(t *testing.T) {
@@ -194,8 +248,9 @@ func TestScreen_clearLine(t *testing.T) {
 	s.writeChar('A', ColorDefault, ColorDefault, Attributes{})
 	s.writeChar('B', ColorDefault, ColorDefault, Attributes{})
 
+	s.CursorX = 3
 	s.clearLine()
-	assert.Equal(t, 0, s.CursorX)
+	assert.Equal(t, 3, s.CursorX)
 	for x := 0; x < s.Width; x++ {
 		assert.Equal(t, defaultCell, s.Grid[0][x])
 	}

@@ -221,9 +221,9 @@ func (vt *VirtualTerminal) EraseDisplay(mode int) {
 	s := vt.CurrentScreen()
 	switch mode {
 	case 0:
-		s.clearToEnd()
+		s.clearToEndOfScreen()
 	case 1:
-		s.clearToBeginning()
+		s.clearToBeginningOfScreen()
 	case 2:
 		s.clear()
 	case 3:
@@ -237,9 +237,9 @@ func (vt *VirtualTerminal) EraseLine(mode int) {
 	s := vt.CurrentScreen()
 	switch mode {
 	case 0:
-		s.clearToEnd()
+		s.clearToEndOfLine()
 	case 1:
-		s.clearToBeginning()
+		s.clearToBeginningOfLine()
 	case 2:
 		s.clearLine()
 	}

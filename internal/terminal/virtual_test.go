@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestVirtualTerminal_new(t *testing.T) {
@@ -306,4 +307,128 @@ func TestVirtualTerminal_generation(t *testing.T) {
 	vt.Unlock()
 
 	assert.Greater(t, vt.Generation(), gen)
+}
+
+func TestVirtualTerminal_EraseDisplay_mode0(t *testing.T) {
+	vt := NewVirtualTerminal(10, 5)
+	vt.Lock()
+	vt.WriteChar('A', ColorDefault, ColorDefault, Attributes{})
+	vt.CurrentScreen().CursorX = 0
+	vt.CurrentScreen().CursorY = 1
+	vt.WriteChar('B', ColorDefault, ColorDefault, Attributes{})
+	vt.CurrentScreen().CursorX = 0
+	vt.CurrentScreen().CursorY = 2
+	vt.WriteChar('C', ColorDefault, ColorDefault, Attributes{})
+
+	vt.CurrentScreen().CursorX = 2
+	vt.CurrentScreen().CursorY = 1
+	vt.EraseDisplay(0)
+
+	assert.Equal(t, 'A', vt.main.Grid[0][0].Char)
+	assert.Equal(t, defaultCell, vt.main.Grid[1][2])
+	assert.Equal(t, defaultCell, vt.main.Grid[1][3])
+	for x := 0; x < vt.Width(); x++ {
+		assert.Equal(t, defaultCell, vt.main.Grid[2][x])
+	}
+	vt.Unlock()
+}
+
+func TestVirtualTerminal_EraseDisplay_mode1(t *testing.T) {
+	vt := NewVirtualTerminal(10, 5)
+	vt.Lock()
+	vt.WriteChar('A', ColorDefault, ColorDefault, Attributes{})
+	vt.CurrentScreen().CursorX = 0
+	vt.CurrentScreen().CursorY = 1
+	vt.WriteChar('B', ColorDefault, ColorDefault, Attributes{})
+	vt.CurrentScreen().CursorX = 0
+	vt.CurrentScreen().CursorY = 2
+	vt.WriteChar('C', ColorDefault, ColorDefault, Attributes{})
+
+	vt.CurrentScreen().CursorX = 2
+	vt.CurrentScreen().CursorY = 1
+	vt.EraseDisplay(1)
+
+	for x := 0; x < vt.Width(); x++ {
+		assert.Equal(t, defaultCell, vt.main.Grid[0][x])
+	}
+	assert.Equal(t, defaultCell, vt.main.Grid[1][0])
+	assert.Equal(t, defaultCell, vt.main.Grid[1][1])
+	assert.Equal(t, defaultCell, vt.main.Grid[1][2])
+	assert.Equal(t, 'C', vt.main.Grid[2][0].Char)
+	vt.Unlock()
+}
+
+func TestVirtualTerminal_EraseDisplay_mode2(t *testing.T) {
+	vt := NewVirtualTerminal(10, 5)
+	vt.Lock()
+	vt.WriteChar('A', ColorDefault, ColorDefault, Attributes{})
+	vt.CurrentScreen().CursorX = 5
+	vt.CurrentScreen().CursorY = 3
+	vt.EraseDisplay(2)
+
+	assert.Equal(t, 0, vt.main.CursorX)
+	assert.Equal(t, 0, vt.main.CursorY)
+	for y := 0; y < vt.Height(); y++ {
+		for x := 0; x < vt.Width(); x++ {
+			assert.Equal(t, defaultCell, vt.main.Grid[y][x])
+		}
+	}
+	vt.Unlock()
+}
+
+func TestVirtualTerminal_EraseLine_mode0(t *testing.T) {
+	vt := NewVirtualTerminal(10, 3)
+	vt.Lock()
+	vt.WriteChar('A', ColorDefault, ColorDefault, Attributes{})
+	vt.WriteChar('B', ColorDefault, ColorDefault, Attributes{})
+	vt.WriteChar('C', ColorDefault, ColorDefault, Attributes{})
+
+	vt.CurrentScreen().CursorX = 1
+	vt.EraseLine(0)
+
+	assert.Equal(t, 'A', vt.main.Grid[0][0].Char)
+	assert.Equal(t, defaultCell, vt.main.Grid[0][1])
+	assert.Equal(t, defaultCell, vt.main.Grid[0][2])
+	vt.Unlock()
+}
+
+func TestVirtualTerminal_EraseLine_mode1(t *testing.T) {
+	vt := NewVirtualTerminal(10, 3)
+	vt.Lock()
+	vt.WriteChar('A', ColorDefault, ColorDefault, Attributes{})
+	vt.WriteChar('B', ColorDefault, ColorDefault, Attributes{})
+	vt.WriteChar('C', ColorDefault, ColorDefault, Attributes{})
+
+	vt.CurrentScreen().CursorX = 1
+	vt.EraseLine(1)
+
+	assert.Equal(t, defaultCell, vt.main.Grid[0][0])
+	assert.Equal(t, defaultCell, vt.main.Grid[0][1])
+	requireCellCharR(t, vt, 2, 0, 'C')
+	vt.Unlock()
+}
+
+func TestVirtualTerminal_EraseLine_mode2(t *testing.T) {
+	vt := NewVirtualTerminal(10, 3)
+	vt.Lock()
+	vt.WriteChar('A', ColorDefault, ColorDefault, Attributes{})
+	vt.WriteChar('B', ColorDefault, ColorDefault, Attributes{})
+	vt.WriteChar('C', ColorDefault, ColorDefault, Attributes{})
+
+	vt.CurrentScreen().CursorX = 2
+	vt.EraseLine(2)
+
+	assert.Equal(t, 2, vt.main.CursorX)
+	for x := 0; x < vt.Width(); x++ {
+		assert.Equal(t, defaultCell, vt.main.Grid[0][x])
+	}
+	vt.Unlock()
+}
+
+func requireCellCharR(t *testing.T, vt *VirtualTerminal, x, y int, expected rune) {
+	t.Helper()
+	s := vt.CurrentScreen()
+	require.Less(t, y, s.Height, "y out of bounds")
+	require.Less(t, x, s.Width, "x out of bounds")
+	assert.Equal(t, expected, s.Grid[y][x].Char, "cell(%d,%d)", x, y)
 }

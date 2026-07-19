@@ -125,15 +125,37 @@ func (s *Screen) clear() {
 	s.CursorY = 0
 }
 
-func (s *Screen) clearToEnd() {
+func (s *Screen) clearToEndOfLine() {
 	for x := s.CursorX; x < s.Width; x++ {
 		s.Grid[s.CursorY][x] = defaultCell
 	}
 }
 
-func (s *Screen) clearToBeginning() {
+func (s *Screen) clearToBeginningOfLine() {
 	for x := 0; x <= s.CursorX; x++ {
 		s.Grid[s.CursorY][x] = defaultCell
+	}
+}
+
+func (s *Screen) clearToEndOfScreen() {
+	for x := s.CursorX; x < s.Width; x++ {
+		s.Grid[s.CursorY][x] = defaultCell
+	}
+	for y := s.CursorY + 1; y < s.Height; y++ {
+		for x := 0; x < s.Width; x++ {
+			s.Grid[y][x] = defaultCell
+		}
+	}
+}
+
+func (s *Screen) clearToBeginningOfScreen() {
+	for x := 0; x <= s.CursorX; x++ {
+		s.Grid[s.CursorY][x] = defaultCell
+	}
+	for y := 0; y < s.CursorY; y++ {
+		for x := 0; x < s.Width; x++ {
+			s.Grid[y][x] = defaultCell
+		}
 	}
 }
 
@@ -141,7 +163,6 @@ func (s *Screen) clearLine() {
 	for x := 0; x < s.Width; x++ {
 		s.Grid[s.CursorY][x] = defaultCell
 	}
-	s.CursorX = 0
 }
 
 func (s *Screen) backspace() {
