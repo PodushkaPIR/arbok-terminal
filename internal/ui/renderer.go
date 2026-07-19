@@ -243,6 +243,14 @@ func (r *TerminalRenderer) invertCellAt(x, y int, screen *terminal.Screen, bgDef
 		bg = ColorToRGBA(cell.Background, bgDef)
 	}
 
+	cursorBg := theme.Color(theme.ColorNameFocus)
+	if isDefaultBg && isDefaultFg {
+		r, g, b, _ := bgDef.RGBA()
+		fg = color.RGBA{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8), A: 255}
+		cr, cg, cb, _ := cursorBg.RGBA()
+		bg = color.RGBA{R: uint8(cr >> 8), G: uint8(cg >> 8), B: uint8(cb >> 8), A: 255}
+	}
+
 	r.cellRects[y][x].FillColor = fg
 	r.cellRects[y][x].Refresh()
 
