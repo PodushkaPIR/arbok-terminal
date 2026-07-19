@@ -211,7 +211,7 @@ func (r *TerminalRenderer) Refresh() {
 
 		r.cursor.Move(fyne.NewPos(float32(cursorX)*cellW, float32(cursorY)*cellH))
 		r.cursor.Resize(fyne.NewSize(cellW, cellH))
-		r.cursor.Show()
+		r.cursor.Hide()
 		r.prevCursorX = cursorX
 		r.prevCursorY = cursorY
 		r.cursorActive = true
@@ -228,8 +228,8 @@ func (r *TerminalRenderer) invertCellAt(x, y int, screen *terminal.Screen, bgDef
 	}
 	cell := screen.Grid[y][x]
 
-	isDefaultBg := cell.Background == terminal.ColorDefault || (!cell.Background.Default && cell.Background.R == 0 && cell.Background.G == 0 && cell.Background.B == 0)
-	isDefaultFg := cell.Foreground == terminal.ColorDefault || (!cell.Foreground.Default && cell.Foreground.R == 255 && cell.Foreground.G == 255 && cell.Foreground.B == 255)
+	isDefaultBg := cell.Background == terminal.ColorDefault
+	isDefaultFg := cell.Foreground == terminal.ColorDefault
 
 	var fg, bg color.RGBA
 	if isDefaultFg {
