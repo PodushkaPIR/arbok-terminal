@@ -59,6 +59,8 @@ func main() {
 		panic(err)
 	}
 
+	vt.SetResponseCallback(func(data []byte) { ptym.Write(data) })
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

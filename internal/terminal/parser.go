@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"fmt"
 	"log/slog"
 	"unicode/utf8"
 )
@@ -80,7 +81,7 @@ func NewParser(vt *VirtualTerminal) *Parser {
 }
 
 func (p *Parser) Parse(data []byte) {
-	slog.Debug("parser: parse", "bytes", len(data))
+	slog.Debug("parser: parse", "bytes", len(data), "hex", fmt.Sprintf("%x", data))
 	p.vt.mu.Lock()
 	for _, b := range data {
 		p.parseByte(byte(b))
@@ -349,9 +350,20 @@ func (p *Parser) executeCSI(cmd byte, params []int) {
 	case 'r':
 		p.vt.SetScrollRegion(getParam(0, 1)-1, getParam(1, p.vt.Height())-1)
 	case 'n':
-		// DeviceStatusReport — TODO
+		// DeviceStatusReport
+		switch getParam(0, 0) {
+		case 5:
+			// Status report: OK
+			p.vt.SendResponse([]byte("\x1b[0n"))
+		case 6:
+			// Cursor position report
+			x := p.vt.CurrentScreen().CursorX + 1
+			y := p.vt.CurrentScreen().CursorY + 1
+			p.vt.SendResponse([]byte(fmt.Sprintf("\x1b[%d;%dR", y, x)))
+		}
 	case 'c':
-		// DeviceAttributes — TODO
+		// DeviceAttributes — basic VT100
+		p.vt.SendResponse([]byte("\x1b[?1;2c"))
 	}
 }
 
@@ -466,6 +478,6 @@ func (p *Parser) executePrivateMode(cmd byte, params []int) {
 	case 1048:
 		p.vt.SetDECPrivateMode(1048, on)
 	case 2004:
-		// Bracketed paste — TODO Phase 2
+		p.vt.SetDECPrivateMode(2004, on)
 	}
 }

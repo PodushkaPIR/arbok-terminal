@@ -19,16 +19,18 @@ type VirtualTerminal struct {
 	generation atomic.Uint64
 
 	onCursorKeyMode func(app bool)
+	onResponse       func(data []byte)
 }
 
 type DECModeSet struct {
-	AltScreen    bool
+	AltScreen     bool
 	CursorVisible bool
-	CursorBlink  bool
-	AutoWrap     bool
-	OriginMode   bool
-	InsertMode   bool
-	TabWidth     int
+	CursorBlink   bool
+	AutoWrap      bool
+	OriginMode    bool
+	InsertMode    bool
+	BracketedPaste bool
+	TabWidth      int
 }
 
 func NewVirtualTerminal(width, height int) *VirtualTerminal {
@@ -63,6 +65,16 @@ func (vt *VirtualTerminal) Generation() uint64 { return vt.generation.Load() }
 
 func (vt *VirtualTerminal) SetCursorKeyModeCallback(fn func(bool)) {
 	vt.onCursorKeyMode = fn
+}
+
+func (vt *VirtualTerminal) SetResponseCallback(fn func([]byte)) {
+	vt.onResponse = fn
+}
+
+func (vt *VirtualTerminal) SendResponse(data []byte) {
+	if vt.onResponse != nil {
+		vt.onResponse(data)
+	}
 }
 
 func (vt *VirtualTerminal) markDirty() {
@@ -122,6 +134,9 @@ func (vt *VirtualTerminal) SetMode(mode int, on bool) {
 		vt.modes.OriginMode = on
 	case 4: // Insert mode
 		vt.modes.InsertMode = on
+	case 2004: // Bracketed paste
+		slog.Debug("vt: bracketed paste", "enabled", on)
+		vt.modes.BracketedPaste = on
 	}
 	vt.markDirty()
 }
