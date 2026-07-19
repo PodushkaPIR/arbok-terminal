@@ -2,27 +2,17 @@ package pty
 
 import (
 	"io"
+	"log"
 	"os"
 	"os/exec"
-	"os/signal"
-	"syscall"
 
 	"github.com/creack/pty"
 )
-
-type Winsize struct {
-	Rows uint16
-	Cols uint16
-	X    uint16
-	Y    uint16
-}
 
 type Manager struct {
 	Cmd      *exec.Cmd
 	PTY      *os.File
 	OutputCh chan []byte
-	InputCh  chan []byte
-	SizeCh   chan Winsize
 	DoneCh   chan struct{}
 }
 
@@ -51,13 +41,12 @@ func New(shell string, cols, rows int) (*Manager, error) {
 		Cmd:      cmd,
 		PTY:      ptmx,
 		OutputCh: make(chan []byte, 4096),
-		InputCh:  make(chan []byte, 256),
-		SizeCh:   make(chan Winsize, 10),
 		DoneCh:   make(chan struct{}),
 	}
 
+	log.Printf("[PTY] shell=%s pid=%d cols=%d rows=%d", shell, cmd.Process.Pid, cols, rows)
+
 	go m.readLoop()
-	go m.handleSignals()
 
 	return m, nil
 }
@@ -77,27 +66,7 @@ func (m *Manager) readLoop() {
 			if err == io.EOF {
 				return
 			}
-			return
-		}
-	}
-}
-
-func (m *Manager) handleSignals() {
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGWINCH)
-
-	for {
-		select {
-		case <-ch:
-			rows, cols, err := pty.Getsize(m.PTY)
-			if err != nil {
-				continue
-			}
-			m.SizeCh <- Winsize{
-				Rows: uint16(rows),
-				Cols: uint16(cols),
-			}
-		case <-m.DoneCh:
+			log.Printf("[PTY] readLoop error: %v", err)
 			return
 		}
 	}

@@ -1,0 +1,5 @@
+/arbok
+*.exe
+*.test
+*.out
+shell.nix

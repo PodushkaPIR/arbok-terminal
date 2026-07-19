@@ -1,62 +1,63 @@
 package terminal
 
-import (
-	"github.com/gdamore/tcell/v2"
-)
+import "unicode/utf8"
 
-var ansiColors = map[int]tcell.Color{
-	30: tcell.ColorBlack,
-	31: tcell.ColorMaroon,
-	32: tcell.ColorGreen,
-	33: tcell.ColorOlive,
-	34: tcell.ColorNavy,
-	35: tcell.ColorPurple,
-	36: tcell.ColorTeal,
-	37: tcell.ColorSilver,
-	90: tcell.ColorGray,
-	91: tcell.ColorRed,
-	92: tcell.ColorLime,
-	93: tcell.ColorYellow,
-	94: tcell.ColorBlue,
-	95: tcell.ColorFuchsia,
-	96: tcell.ColorAqua,
-	97: tcell.ColorWhite,
+var ansiColors = map[int]Color{
+	30: ColorRGB(0, 0, 0),
+	31: ColorRGB(128, 0, 0),
+	32: ColorRGB(0, 128, 0),
+	33: ColorRGB(128, 128, 0),
+	34: ColorRGB(0, 0, 128),
+	35: ColorRGB(128, 0, 128),
+	36: ColorRGB(0, 128, 128),
+	37: ColorRGB(192, 192, 192),
+	90: ColorRGB(128, 128, 128),
+	91: ColorRGB(255, 0, 0),
+	92: ColorRGB(0, 255, 0),
+	93: ColorRGB(255, 255, 0),
+	94: ColorRGB(0, 0, 255),
+	95: ColorRGB(255, 0, 255),
+	96: ColorRGB(0, 255, 255),
+	97: ColorRGB(255, 255, 255),
 }
 
-var ansiBgColors = map[int]tcell.Color{
-	40:  tcell.ColorBlack,
-	41:  tcell.ColorMaroon,
-	42:  tcell.ColorGreen,
-	43:  tcell.ColorOlive,
-	44:  tcell.ColorNavy,
-	45:  tcell.ColorPurple,
-	46:  tcell.ColorTeal,
-	47:  tcell.ColorSilver,
-	100: tcell.ColorGray,
-	101: tcell.ColorRed,
-	102: tcell.ColorLime,
-	103: tcell.ColorYellow,
-	104: tcell.ColorBlue,
-	105: tcell.ColorFuchsia,
-	106: tcell.ColorAqua,
-	107: tcell.ColorWhite,
+var ansiBgColors = map[int]Color{
+	40:  ColorRGB(0, 0, 0),
+	41:  ColorRGB(128, 0, 0),
+	42:  ColorRGB(0, 128, 0),
+	43:  ColorRGB(128, 128, 0),
+	44:  ColorRGB(0, 0, 128),
+	45:  ColorRGB(128, 0, 128),
+	46:  ColorRGB(0, 128, 128),
+	47:  ColorRGB(192, 192, 192),
+	100: ColorRGB(128, 128, 128),
+	101: ColorRGB(255, 0, 0),
+	102: ColorRGB(0, 255, 0),
+	103: ColorRGB(255, 255, 0),
+	104: ColorRGB(0, 0, 255),
+	105: ColorRGB(255, 0, 255),
+	106: ColorRGB(0, 255, 255),
+	107: ColorRGB(255, 255, 255),
 }
 
 type Parser struct {
-	state  int
-	params []int
-	buf    []byte
-	buffer *Buffer
+	state   int
+	params  []int
+	buf     []byte
+	utf8Buf []byte
+	buffer  *Buffer
 
-	currentFg    tcell.Color
-	currentBg    tcell.Color
+	currentFg    Color
+	currentBg    Color
 	currentAttrs Attributes
 
 	savedX int
 	savedY int
 
-	handler      func(rune, tcell.Color, tcell.Color, Attributes)
-	TitleHandler func(string)
+	paramStarted bool
+	privateMode   bool
+	TitleHandler  func(string)
+	pendingTitle  string
 }
 
 const (
@@ -69,21 +70,34 @@ const (
 	stateOSC
 )
 
-func NewParser(buf *Buffer, handler func(rune, tcell.Color, tcell.Color, Attributes)) *Parser {
+func NewParser(buf *Buffer) *Parser {
 	return &Parser{
 		state:     stateGround,
 		buffer:    buf,
 		params:    make([]int, 0, 16),
-		currentFg: tcell.ColorDefault,
-		currentBg: tcell.ColorDefault,
-		handler:   handler,
+		currentFg: ColorDefault,
+		currentBg: ColorDefault,
 	}
 }
 
 func (p *Parser) Parse(data []byte) {
+	p.buffer.mu.Lock()
 	for _, b := range data {
 		p.parseByte(byte(b))
 	}
+	p.buffer.mu.Unlock()
+}
+
+func (p *Parser) SetTitle(title string) {
+	if p.TitleHandler != nil {
+		p.TitleHandler(title)
+	}
+}
+
+func (p *Parser) PendingTitle() string {
+	t := p.pendingTitle
+	p.pendingTitle = ""
+	return t
 }
 
 func (p *Parser) parseByte(b byte) {
@@ -106,6 +120,17 @@ func (p *Parser) parseByte(b byte) {
 }
 
 func (p *Parser) handleGround(b byte) {
+	if len(p.utf8Buf) > 0 {
+		p.utf8Buf = append(p.utf8Buf, b)
+		if r, _ := utf8.DecodeRune(p.utf8Buf); r != utf8.RuneError || len(p.utf8Buf) >= 4 {
+			if r != utf8.RuneError {
+				p.emitChar(r)
+			}
+			p.utf8Buf = p.utf8Buf[:0]
+		}
+		return
+	}
+
 	switch b {
 	case 0x1B:
 		p.state = stateEscape
@@ -113,22 +138,22 @@ func (p *Parser) handleGround(b byte) {
 	case 0x07:
 		// Bell - ignore for now
 	case 0x08:
-		// Backspace
-		p.buffer.Backspace()
+		p.buffer.backspaceLocked()
 	case 0x09:
-		// Tab
-		p.buffer.Tab()
+		p.buffer.tabLocked()
 	case 0x0A, 0x0B, 0x0C:
-		// Line feed, vertical tab, form feed
-		p.buffer.Newline()
+		p.buffer.newlineLocked()
 	case 0x0D:
-		// Carriage return
 		p.buffer.CursorX = 0
 	case 0x7F:
 		// Delete - ignore
 	default:
 		if b >= 0x20 {
-			p.emitChar(rune(b))
+			if b < 0x80 {
+				p.emitChar(rune(b))
+			} else {
+				p.utf8Buf = append(p.utf8Buf[:0], b)
+			}
 		}
 	}
 }
@@ -138,6 +163,7 @@ func (p *Parser) handleEscape(b byte) {
 	case '[':
 		p.state = stateCSI
 		p.params = p.params[:0]
+		p.privateMode = false
 	case ']':
 		p.state = stateOSC
 		p.buf = p.buf[:0]
@@ -146,21 +172,21 @@ func (p *Parser) handleEscape(b byte) {
 		p.savedY = p.buffer.CursorY
 		p.state = stateGround
 	case '8':
-		p.buffer.MoveCursor(p.savedX, p.savedY)
+		p.buffer.moveCursorLocked(p.savedX, p.savedY)
 		p.state = stateGround
 	case 'D':
-		p.buffer.MoveDown(1)
+		p.buffer.moveDownLocked(1)
 		p.state = stateGround
 	case 'M':
-		p.buffer.MoveUp(1)
+		p.buffer.moveUpLocked(1)
 		p.state = stateGround
 	case 'c':
-		p.buffer.Clear()
-		p.currentFg = tcell.ColorDefault
-		p.currentBg = tcell.ColorDefault
+		p.buffer.clearLocked()
+		p.currentFg = ColorDefault
+		p.currentBg = ColorDefault
 		p.currentAttrs = Attributes{}
 		p.state = stateGround
-	case 'P', 'X', '^', '=': // DCS, SOS, PM, APC - ignore until ST
+	case 'P', 'X', '^', '=':
 		p.buf = p.buf[:0]
 		p.state = stateGround
 	default:
@@ -209,16 +235,20 @@ func (p *Parser) executeOSC() {
 
 	switch oscType {
 	case 0, 1, 2:
-		if p.TitleHandler != nil {
-			p.TitleHandler(title)
-		}
+		p.pendingTitle = title
 	}
 }
 
 func (p *Parser) handleCSI(b byte) {
+	if b == '?' || b == '>' || b == '=' {
+		p.privateMode = true
+		return
+	}
+
 	if b >= '0' && b <= '9' {
 		p.state = stateCSIParam
 		p.params = append(p.params, int(b-'0'))
+		p.paramStarted = b != '0'
 		return
 	}
 
@@ -228,7 +258,12 @@ func (p *Parser) handleCSI(b byte) {
 	}
 
 	if b >= 0x40 && b < 0x80 {
-		p.executeCSI(b, p.params)
+		if p.privateMode {
+			p.executePrivateMode(b, p.params)
+		} else {
+			p.executeCSI(b, p.params)
+		}
+		p.privateMode = false
 		p.state = stateGround
 	}
 }
@@ -239,32 +274,32 @@ func (p *Parser) handleCSIParam(b byte) {
 			p.params = append(p.params, 0)
 		}
 		last := len(p.params) - 1
-		if p.params[last] == 0 && !p.isInMiddleOfParam() {
+		if p.params[last] == 0 && !p.paramStarted {
 			p.params[last] = int(b - '0')
 		} else {
 			p.params[last] = p.params[last]*10 + int(b-'0')
+		}
+		if b != '0' {
+			p.paramStarted = true
 		}
 		return
 	}
 
 	if b == ';' {
 		p.params = append(p.params, 0)
+		p.paramStarted = false
 		return
 	}
 
 	if b >= 0x40 && b < 0x80 {
-		p.executeCSI(b, p.params)
+		if p.privateMode {
+			p.executePrivateMode(b, p.params)
+		} else {
+			p.executeCSI(b, p.params)
+		}
+		p.privateMode = false
 		p.state = stateGround
 	}
-}
-
-func (p *Parser) isInMiddleOfParam() bool {
-	for _, v := range p.params {
-		if v != 0 {
-			return true
-		}
-	}
-	return false
 }
 
 func (p *Parser) executeCSI(cmd byte, params []int) {
@@ -281,35 +316,71 @@ func (p *Parser) executeCSI(cmd byte, params []int) {
 	case 'H', 'f':
 		y := getParam(0, 1)
 		x := getParam(1, 1)
-		p.buffer.MoveCursor(x-1, y-1)
+		p.buffer.moveCursorLocked(x-1, y-1)
 	case 'A':
-		p.buffer.MoveUp(getParam(0, 1))
+		p.buffer.moveUpLocked(getParam(0, 1))
 	case 'B':
-		p.buffer.MoveDown(getParam(0, 1))
+		p.buffer.moveDownLocked(getParam(0, 1))
 	case 'C':
-		p.buffer.MoveRight(getParam(0, 1))
+		p.buffer.moveRightLocked(getParam(0, 1))
 	case 'D':
-		p.buffer.MoveLeft(getParam(0, 1))
+		p.buffer.moveLeftLocked(getParam(0, 1))
 	case 'J':
 		mode := getParam(0, 0)
 		switch mode {
 		case 0:
-			p.buffer.ClearToEnd()
+			p.buffer.clearToEndLocked()
 		case 1:
-			p.buffer.ClearToBeginning()
+			p.buffer.clearToBeginningLocked()
 		case 2, 3:
-			p.buffer.Clear()
+			p.buffer.clearLocked()
 		}
 	case 'K':
 		mode := getParam(0, 0)
 		switch mode {
 		case 0:
-			p.buffer.ClearToEnd()
+			p.buffer.clearToEndLocked()
 		case 1:
-			p.buffer.ClearToBeginning()
+			p.buffer.clearToBeginningLocked()
 		case 2:
-			p.buffer.ClearLine()
+			p.buffer.clearLineLocked()
 		}
+	case 'L':
+		// InsertLines — TODO Phase 3
+	case 'M':
+		// DeleteLines — TODO Phase 3
+	case 'P':
+		// DeleteChars — TODO Phase 3
+	case '@':
+		// InsertChars — TODO Phase 3
+	case 'S':
+		// ScrollUp — TODO Phase 3
+	case 'T':
+		// ScrollDown — TODO Phase 3
+	case 'X':
+		// EraseChars — TODO Phase 3
+	case 'd':
+		p.buffer.CursorY = getParam(0, 1) - 1
+		if p.buffer.CursorY < 0 {
+			p.buffer.CursorY = 0
+		}
+		if p.buffer.CursorY >= p.buffer.Height {
+			p.buffer.CursorY = p.buffer.Height - 1
+		}
+	case 'G':
+		p.buffer.CursorX = getParam(0, 1) - 1
+		if p.buffer.CursorX < 0 {
+			p.buffer.CursorX = 0
+		}
+		if p.buffer.CursorX >= p.buffer.Width {
+			p.buffer.CursorX = p.buffer.Width - 1
+		}
+	case 'r':
+		// SetScrollRegion — TODO Phase 3
+	case 'n':
+		// DeviceStatusReport — TODO
+	case 'c':
+		// DeviceAttributes — TODO
 	}
 }
 
@@ -325,8 +396,8 @@ func (p *Parser) handleSGR(params []int) {
 
 		switch {
 		case code == 0:
-			p.currentFg = tcell.ColorDefault
-			p.currentBg = tcell.ColorDefault
+			p.currentFg = ColorDefault
+			p.currentBg = ColorDefault
 			p.currentAttrs = Attributes{}
 
 		case code == 1:
@@ -361,11 +432,11 @@ func (p *Parser) handleSGR(params []int) {
 		case code >= 30 && code <= 37:
 			p.currentFg = ansiColors[code]
 		case code == 39:
-			p.currentFg = tcell.ColorDefault
+			p.currentFg = ColorDefault
 		case code >= 40 && code <= 47:
 			p.currentBg = ansiBgColors[code]
 		case code == 49:
-			p.currentBg = tcell.ColorDefault
+			p.currentBg = ColorDefault
 
 		case code >= 90 && code <= 97:
 			p.currentFg = ansiColors[code]
@@ -374,21 +445,21 @@ func (p *Parser) handleSGR(params []int) {
 
 		case code == 38 && i < len(params):
 			if params[i] == 5 && i+1 < len(params) {
-				p.currentFg = tcell.Color(uint32(params[i+1]) + 1)
+				p.currentFg = ColorIndex(params[i+1])
 				i += 2
 			} else if params[i] == 2 && i+3 < len(params) {
 				r, g, b := params[i+1], params[i+2], params[i+3]
-				p.currentFg = tcell.NewRGBColor(int32(r), int32(g), int32(b))
+				p.currentFg = ColorRGB(uint8(r), uint8(g), uint8(b))
 				i += 4
 			}
 
 		case code == 48 && i < len(params):
 			if params[i] == 5 && i+1 < len(params) {
-				p.currentBg = tcell.Color(uint32(params[i+1]) + 1)
+				p.currentBg = ColorIndex(params[i+1])
 				i += 2
 			} else if params[i] == 2 && i+3 < len(params) {
 				r, g, b := params[i+1], params[i+2], params[i+3]
-				p.currentBg = tcell.NewRGBColor(int32(r), int32(g), int32(b))
+				p.currentBg = ColorRGB(uint8(r), uint8(g), uint8(b))
 				i += 4
 			}
 		}
@@ -396,8 +467,31 @@ func (p *Parser) handleSGR(params []int) {
 }
 
 func (p *Parser) emitChar(ch rune) {
-	p.buffer.WriteChar(ch, p.currentFg, p.currentBg, p.currentAttrs)
-	if p.handler != nil {
-		p.handler(ch, p.currentFg, p.currentBg, p.currentAttrs)
+	p.buffer.writeCharLocked(ch, p.currentFg, p.currentBg, p.currentAttrs)
+}
+
+func (p *Parser) executePrivateMode(cmd byte, params []int) {
+	getParam := func(idx, defaultVal int) int {
+		if idx < len(params) {
+			return params[idx]
+		}
+		return defaultVal
+	}
+
+	mode := getParam(0, 0)
+
+	switch {
+	case mode == 1:
+		// DECCKM — TODO Phase 2
+	case mode == 7:
+		// AutoWrap — TODO Phase 2
+	case mode == 12, mode == 25:
+		// Cursor visibility — TODO Phase 2
+	case mode == 47 || mode == 1047 || mode == 1049:
+		// Alt screen — TODO Phase 2
+	case mode == 1048:
+		// Save/restore cursor — TODO Phase 2
+	case mode == 2004:
+		// Bracketed paste — TODO Phase 2
 	}
 }
