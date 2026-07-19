@@ -33,16 +33,15 @@ func (h *Handler) HandleKey(event *fyne.KeyEvent) {
 
 	if key == desktop.KeyControlLeft || key == desktop.KeyControlRight {
 		h.ctrlDown = true
+		h.ctrlConsumed = false
 		return
 	}
 
 	if h.ctrlDown {
 		h.ctrlDown = false
-		if key == fyne.KeyName("L") || key == fyne.KeyName("l") {
-			data := []byte{0x0C}
-			if h.onInput != nil {
-				h.onInput(data)
-			}
+		ctrlKey := translateCtrlKey(key)
+		if ctrlKey != 0 {
+			h.onInput([]byte{ctrlKey})
 			h.ctrlConsumed = true
 			return
 		}
@@ -66,6 +65,72 @@ func (h *Handler) HandleRune(r rune) {
 		data := []byte(string(r))
 		h.onInput(data)
 	}
+}
+
+func translateCtrlKey(key fyne.KeyName) byte {
+	switch key {
+	case fyne.KeyName("A"), fyne.KeyName("a"):
+		return 0x01
+	case fyne.KeyName("B"), fyne.KeyName("b"):
+		return 0x02
+	case fyne.KeyName("C"), fyne.KeyName("c"):
+		return 0x03
+	case fyne.KeyName("D"), fyne.KeyName("d"):
+		return 0x04
+	case fyne.KeyName("E"), fyne.KeyName("e"):
+		return 0x05
+	case fyne.KeyName("F"), fyne.KeyName("f"):
+		return 0x06
+	case fyne.KeyName("G"), fyne.KeyName("g"):
+		return 0x07
+	case fyne.KeyName("H"), fyne.KeyName("h"):
+		return 0x08
+	case fyne.KeyName("I"), fyne.KeyName("i"):
+		return 0x09
+	case fyne.KeyName("J"), fyne.KeyName("j"):
+		return 0x0A
+	case fyne.KeyName("K"), fyne.KeyName("k"):
+		return 0x0B
+	case fyne.KeyName("L"), fyne.KeyName("l"):
+		return 0x0C
+	case fyne.KeyName("M"), fyne.KeyName("m"):
+		return 0x0D
+	case fyne.KeyName("N"), fyne.KeyName("n"):
+		return 0x0E
+	case fyne.KeyName("O"), fyne.KeyName("o"):
+		return 0x0F
+	case fyne.KeyName("P"), fyne.KeyName("p"):
+		return 0x10
+	case fyne.KeyName("Q"), fyne.KeyName("q"):
+		return 0x11
+	case fyne.KeyName("R"), fyne.KeyName("r"):
+		return 0x12
+	case fyne.KeyName("S"), fyne.KeyName("s"):
+		return 0x13
+	case fyne.KeyName("T"), fyne.KeyName("t"):
+		return 0x14
+	case fyne.KeyName("U"), fyne.KeyName("u"):
+		return 0x15
+	case fyne.KeyName("V"), fyne.KeyName("v"):
+		return 0x16
+	case fyne.KeyName("W"), fyne.KeyName("w"):
+		return 0x17
+	case fyne.KeyName("X"), fyne.KeyName("x"):
+		return 0x18
+	case fyne.KeyName("Y"), fyne.KeyName("y"):
+		return 0x19
+	case fyne.KeyName("Z"), fyne.KeyName("z"):
+		return 0x1A
+	case fyne.KeyBackslash:
+		return 0x1C
+	case fyne.KeyLeftBracket:
+		return 0x1B
+	case fyne.KeyRightBracket:
+		return 0x1D
+	case fyne.KeyMinus:
+		return 0x1F
+	}
+	return 0
 }
 
 func (h *Handler) translateKey(event *fyne.KeyEvent) []byte {
