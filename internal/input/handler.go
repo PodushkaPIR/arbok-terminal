@@ -1,6 +1,8 @@
 package input
 
 import (
+	"log/slog"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
 )
@@ -20,8 +22,14 @@ func (h *Handler) SetOnInput(fn func([]byte)) {
 	h.onInput = fn
 }
 
+func (h *Handler) SetApplicationCursorKeys(app bool) {
+	slog.Info("input: application cursor keys", "enabled", app)
+	h.ApplicationCursorKeys = app
+}
+
 func (h *Handler) HandleKey(event *fyne.KeyEvent) {
 	key := event.Name
+	slog.Debug("input: key", "key", string(key), "ctrl", h.ctrlDown)
 
 	if key == desktop.KeyControlLeft || key == desktop.KeyControlRight {
 		h.ctrlDown = true
@@ -53,6 +61,7 @@ func (h *Handler) HandleRune(r rune) {
 		return
 	}
 	h.ctrlDown = false
+	slog.Debug("input: rune", "rune", string(r))
 	if h.onInput != nil {
 		data := []byte(string(r))
 		h.onInput(data)

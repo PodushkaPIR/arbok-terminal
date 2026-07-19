@@ -1,6 +1,9 @@
 package terminal
 
-import "unicode/utf8"
+import (
+	"log/slog"
+	"unicode/utf8"
+)
 
 var ansiColors = map[int]Color{
 	30: ColorRGB(0, 0, 0),
@@ -77,6 +80,7 @@ func NewParser(vt *VirtualTerminal) *Parser {
 }
 
 func (p *Parser) Parse(data []byte) {
+	slog.Debug("parser: parse", "bytes", len(data))
 	p.vt.mu.Lock()
 	for _, b := range data {
 		p.parseByte(byte(b))
@@ -299,6 +303,8 @@ func (p *Parser) executeCSI(cmd byte, params []int) {
 		return defaultVal
 	}
 
+	slog.Debug("parser: CSI", "cmd", string(cmd), "params", params)
+
 	switch cmd {
 	case 'm':
 		p.handleSGR(params)
@@ -446,9 +452,11 @@ func (p *Parser) executePrivateMode(cmd byte, params []int) {
 	mode := getParam(0, 0)
 	on := cmd == 'h'
 
+	slog.Info("parser: DEC mode", "mode", mode, "on", on)
+
 	switch mode {
 	case 1:
-		// DECCKM — TODO Phase 2
+		p.vt.SetDECPrivateMode(1, on)
 	case 7:
 		p.vt.SetDECPrivateMode(7, on)
 	case 12, 25:

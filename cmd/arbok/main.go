@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,12 +12,17 @@ import (
 	"fyne.io/fyne/v2/app"
 
 	"arbok-terminal/internal/input"
+	"arbok-terminal/internal/logging"
 	"arbok-terminal/internal/pty"
 	"arbok-terminal/internal/terminal"
 	"arbok-terminal/internal/ui"
 )
 
 func main() {
+	logLevel := flag.String("log-level", "warn", "Log level: trace, debug, info, warn, error")
+	flag.Parse()
+	logging.Init(*logLevel)
+
 	fyneApp := app.NewWithID("arbok.terminal")
 	window := fyneApp.NewWindow("Arbok Terminal")
 
@@ -41,6 +47,8 @@ func main() {
 	parser := terminal.NewParser(vt)
 	inputH := input.New()
 	termWidget := ui.New(vt, inputH)
+
+	vt.SetCursorKeyModeCallback(inputH.SetApplicationCursorKeys)
 
 	parser.TitleHandler = func(title string) {
 		fyne.Do(func() { window.SetTitle(title) })
@@ -110,12 +118,24 @@ func main() {
 	}()
 
 	go func() {
+		var lastGeneration uint64
+		refreshTimer := time.NewTimer(0)
+		<-refreshTimer.C // drain initial fire
+		refreshTimer.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
+				refreshTimer.Stop()
 				return
 			case <-refreshCh:
-				vt.ClearDirty()
+				gen := vt.Generation()
+				if gen == lastGeneration {
+					continue
+				}
+				lastGeneration = gen
+				refreshTimer.Reset(16 * time.Millisecond)
+			case <-refreshTimer.C:
 				fyne.Do(func() {
 					termWidget.Refresh()
 					window.Canvas().Refresh(termWidget)

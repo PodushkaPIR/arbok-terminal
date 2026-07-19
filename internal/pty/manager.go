@@ -2,7 +2,7 @@ package pty
 
 import (
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"time"
@@ -45,7 +45,7 @@ func New(shell string, cols, rows int) (*Manager, error) {
 		DoneCh:   make(chan struct{}),
 	}
 
-	log.Printf("[PTY] shell=%s pid=%d cols=%d rows=%d", shell, cmd.Process.Pid, cols, rows)
+	slog.Info("pty: created", "shell", shell, "pid", cmd.Process.Pid, "cols", cols, "rows", rows)
 
 	go m.readLoop()
 
@@ -67,7 +67,7 @@ func (m *Manager) readLoop() {
 			if err == io.EOF {
 				return
 			}
-			log.Printf("[PTY] readLoop error: %v", err)
+			slog.Error("pty: read error", "err", err)
 			return
 		}
 	}

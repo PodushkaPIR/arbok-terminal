@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"log/slog"
 	"sync"
 	"sync/atomic"
 )
@@ -16,6 +17,8 @@ type VirtualTerminal struct {
 
 	dirty      atomic.Bool
 	generation atomic.Uint64
+
+	onCursorKeyMode func(app bool)
 }
 
 type DECModeSet struct {
@@ -58,6 +61,10 @@ func (vt *VirtualTerminal) IsDirty() bool     { return vt.dirty.Load() }
 func (vt *VirtualTerminal) ClearDirty()        { vt.dirty.Store(false) }
 func (vt *VirtualTerminal) Generation() uint64 { return vt.generation.Load() }
 
+func (vt *VirtualTerminal) SetCursorKeyModeCallback(fn func(bool)) {
+	vt.onCursorKeyMode = fn
+}
+
 func (vt *VirtualTerminal) markDirty() {
 	vt.dirty.Store(true)
 	vt.generation.Add(1)
@@ -74,7 +81,13 @@ func (vt *VirtualTerminal) SetPendingTitle(t string) {
 }
 
 func (vt *VirtualTerminal) SetMode(mode int, on bool) {
+	slog.Debug("vt: set mode", "mode", mode, "on", on)
 	switch mode {
+	case 1: // DECCKM — cursor keys mode
+		slog.Debug("vt: DECCKM", "application", on)
+		if vt.onCursorKeyMode != nil {
+			vt.onCursorKeyMode(on)
+		}
 	case 1049: // Alt screen
 		if on && !vt.modes.AltScreen {
 			vt.main.CursorX, vt.main.CursorY = 0, 0
@@ -121,6 +134,7 @@ func (vt *VirtualTerminal) Resize(width, height int) {
 	if width == vt.main.Width && height == vt.main.Height {
 		return
 	}
+	slog.Info("vt: resize", "width", width, "height", height, "old_width", vt.main.Width, "old_height", vt.main.Height)
 	if len(vt.main.Grid) > 0 {
 		for y := 0; y < vt.main.Height; y++ {
 			vt.scrollback.Push(vt.main.Grid[y])
