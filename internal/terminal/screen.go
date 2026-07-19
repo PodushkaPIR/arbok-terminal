@@ -129,21 +129,11 @@ func (s *Screen) clearToEnd() {
 	for x := s.CursorX; x < s.Width; x++ {
 		s.Grid[s.CursorY][x] = defaultCell
 	}
-	for y := s.CursorY + 1; y < s.Height; y++ {
-		for x := 0; x < s.Width; x++ {
-			s.Grid[y][x] = defaultCell
-		}
-	}
 }
 
 func (s *Screen) clearToBeginning() {
 	for x := 0; x <= s.CursorX; x++ {
 		s.Grid[s.CursorY][x] = defaultCell
-	}
-	for y := 0; y < s.CursorY; y++ {
-		for x := 0; x < s.Width; x++ {
-			s.Grid[y][x] = defaultCell
-		}
 	}
 }
 
