@@ -243,7 +243,10 @@ func (vt *VirtualTerminal) DeleteChars(n int) {
 }
 
 func (vt *VirtualTerminal) ScrollUp(n int) {
-	vt.CurrentScreen().scrollUp(n)
+	s := vt.CurrentScreen()
+	count := min(n, s.ScrollBottom-s.ScrollTop+1)
+	vt.pushScrollback(s, count)
+	s.scrollUp(n)
 	vt.markDirty()
 }
 
@@ -296,6 +299,7 @@ func (vt *VirtualTerminal) LineFeed() {
 	if s.CursorY < s.ScrollBottom {
 		s.CursorY++
 	} else {
+		vt.pushScrollback(s, 1)
 		s.scrollUp(1)
 	}
 	vt.markDirty()
@@ -316,6 +320,12 @@ func (vt *VirtualTerminal) Clear() {
 	vt.alt.clear()
 	vt.scrollback.Reset()
 	vt.markDirty()
+}
+
+func (vt *VirtualTerminal) pushScrollback(s *Screen, n int) {
+	for i := 0; i < n; i++ {
+		vt.scrollback.Push(s.Grid[s.ScrollTop+i])
+	}
 }
 
 func (vt *VirtualTerminal) ScrollbackLines() int {

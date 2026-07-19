@@ -319,8 +319,7 @@ func (p *Parser) executeCSI(cmd byte, params []int) {
 	case 'F':
 		p.vt.CursorUpLine(getParam(0, 1))
 	case 'G':
-		p.vt.CarriageReturn()
-		p.vt.CursorRight(getParam(0, 1))
+		p.vt.CurrentScreen().moveCursor(max(getParam(0, 1)-1, 0), p.vt.CurrentScreen().CursorY)
 	case 'J':
 		p.vt.EraseDisplay(getParam(0, 0))
 	case 'K':
@@ -342,7 +341,7 @@ func (p *Parser) executeCSI(cmd byte, params []int) {
 	case 'd':
 		p.vt.CursorPosition(1, getParam(0, 1))
 	case 'r':
-		p.vt.SetScrollRegion(getParam(0, 1), getParam(1, p.vt.Height()))
+		p.vt.SetScrollRegion(getParam(0, 1)-1, getParam(1, p.vt.Height())-1)
 	case 'n':
 		// DeviceStatusReport — TODO
 	case 'c':
