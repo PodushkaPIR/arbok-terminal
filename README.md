@@ -1,7 +1,18 @@
 # Arbok Terminal
 
-A terminal emulator written in Go with Fyne GUI framework.
+A terminal emulator written in Go with Fyne GUI framework. Aims for xterm-256color compatibility — vim, tmux, htop, less should work.
 
+## Features
+
+- **ANSI escape sequences**: Full CSI support — cursor movement, erase display/line, insert/delete lines/chars, scroll up/down, scroll regions
+- **256-color palette**: Standard xterm-256color + 24-bit true color (RGB)
+- **SGR attributes**: Bold, dim, italic, underline, blink, reverse, strikethrough
+- **Alt screen buffer**: `\e[?1049h/l` for vim, tmux, htop
+- **Scrollback**: 1000-line ring buffer, populated on scroll
+- **Cell-level diff rendering**: Only changed cells are redrawn
+- **Dynamic resize**: Window resize updates terminal size via polling
+- **Graceful shutdown**: Context-based goroutine lifecycle, SIGHUP → wait → SIGKILL
+- **UTF-8**: Full Unicode support including multi-byte characters
 
 ## Requirements
 
@@ -60,13 +71,31 @@ go build -o arbok ./cmd/arbok
 
 The launcher script handles XWayland auth automatically.
 
+## Testing
 
-### Components
+```bash
+go test ./internal/terminal/ -v
+```
 
-- **PTY Manager**: Creates pseudo-terminal, spawns shell, handles I/O streams
-- **Screen Buffer**: 2D grid of cells (character + colors + attributes)
-- **ANSI Parser**: Parses escape sequences, updates buffer state
-- **Fyne UI**: Renders buffer to window, captures keyboard input
+90+ tests covering screen operations, ANSI parser, and VirtualTerminal lifecycle.
 
-## In Progress
+## Project Structure
 
+```
+cmd/arbok/main.go              ← entry point, goroutine wiring, graceful shutdown
+internal/terminal/
+  ├── screen.go                ← Screen: Grid + cursor + scroll region
+  ├── virtual.go               ← VirtualTerminal: main/alt screen + scrollback + DEC modes
+  ├── parser.go                ← ANSI state machine (7 states)
+  └── color.go                 ← Color type + 256-palette
+internal/pty/
+  └── manager.go               ← PTY spawn, readLoop, graceful shutdown
+internal/input/
+  └── handler.go               ← key → ANSI escape sequences
+internal/ui/
+  ├── widget.go                ← Fyne widget
+  ├── renderer.go              ← Cell-level diff renderer
+  └── colors.go                ← Color → RGBA
+```
+
+See `docs/architecture.md` for detailed architecture documentation.

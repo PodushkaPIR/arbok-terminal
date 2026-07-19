@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"syscall"
@@ -49,30 +50,30 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer ptym.Close()
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigCh
-		ptym.Close()
-		os.Exit(0)
-	}()
-
-	inputH.SetOnInput(func(data []byte) { ptym.Write(data) })
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	refreshCh := make(chan struct{}, 1)
 
 	go func() {
-		for data := range ptym.OutputCh {
-			parser.Parse(data)
-			if title := vt.PendingTitle(); title != "" {
-				parser.SetTitle(title)
-			}
-			if vt.IsDirty() {
-				select {
-				case refreshCh <- struct{}{}:
-				default:
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case data, ok := <-ptym.OutputCh:
+				if !ok {
+					return
+				}
+				parser.Parse(data)
+				if title := vt.PendingTitle(); title != "" {
+					parser.SetTitle(title)
+				}
+				if vt.IsDirty() {
+					select {
+					case refreshCh <- struct{}{}:
+					default:
+					}
 				}
 			}
 		}
@@ -83,34 +84,55 @@ func main() {
 		defer ticker.Stop()
 		var lastCols, lastRows int
 
-		for range ticker.C {
-			fyne.Do(func() {
-				cols, rows := calcSize(window.Canvas().Size())
-				if cols != lastCols || rows != lastRows {
-					if cols != vt.Width() || rows != vt.Height() {
-						go func(c, r int) {
-							vt.Resize(c, r)
-							ptym.Resize(c, r)
-							fyne.Do(func() {
-								termWidget.Refresh()
-								window.Canvas().Refresh(termWidget)
-							})
-						}(cols, rows)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				fyne.Do(func() {
+					cols, rows := calcSize(window.Canvas().Size())
+					if cols != lastCols || rows != lastRows {
+						if cols != vt.Width() || rows != vt.Height() {
+							go func(c, r int) {
+								vt.Resize(c, r)
+								ptym.Resize(c, r)
+								fyne.Do(func() {
+									termWidget.Refresh()
+									window.Canvas().Refresh(termWidget)
+								})
+							}(cols, rows)
+						}
+						lastCols, lastRows = cols, rows
 					}
-					lastCols, lastRows = cols, rows
-				}
-			})
+				})
+			}
 		}
 	}()
 
 	go func() {
-		for range refreshCh {
-			vt.ClearDirty()
-			fyne.Do(func() {
-				termWidget.Refresh()
-				window.Canvas().Refresh(termWidget)
-			})
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-refreshCh:
+				vt.ClearDirty()
+				fyne.Do(func() {
+					termWidget.Refresh()
+					window.Canvas().Refresh(termWidget)
+				})
+			}
 		}
+	}()
+
+	inputH.SetOnInput(func(data []byte) { ptym.Write(data) })
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		cancel()
+		ptym.Close()
+		fyneApp.Quit()
 	}()
 
 	window.SetContent(termWidget)
@@ -120,4 +142,7 @@ func main() {
 	window.Show()
 
 	fyneApp.Run()
+
+	cancel()
+	ptym.Close()
 }

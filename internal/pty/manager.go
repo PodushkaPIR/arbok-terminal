@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/creack/pty"
 )
@@ -87,9 +88,17 @@ func (m *Manager) Resize(cols, rows int) error {
 func (m *Manager) Close() error {
 	close(m.DoneCh)
 	m.PTY.Close()
+
 	if m.Cmd.Process != nil {
-		m.Cmd.Process.Kill()
+		done := make(chan error, 1)
+		go func() { done <- m.Cmd.Wait() }()
+
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			m.Cmd.Process.Kill()
+			<-done
+		}
 	}
-	m.Cmd.Wait()
 	return nil
 }
