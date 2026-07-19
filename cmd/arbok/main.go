@@ -34,10 +34,10 @@ func main() {
 
 	initW, initH := calcSize(fyne.NewSize(800, 600))
 
-	buffer := terminal.NewBuffer(initW, initH)
-	parser := terminal.NewParser(buffer)
+	vt := terminal.NewVirtualTerminal(initW, initH)
+	parser := terminal.NewParser(vt)
 	inputH := input.New()
-	termWidget := ui.New(buffer, inputH)
+	termWidget := ui.New(vt, inputH)
 
 	parser.TitleHandler = func(title string) {
 		fyne.Do(func() { window.SetTitle(title) })
@@ -56,7 +56,7 @@ func main() {
 	go func() {
 		for data := range ptym.OutputCh {
 			parser.Parse(data)
-			if title := parser.PendingTitle(); title != "" {
+			if title := vt.PendingTitle(); title != "" {
 				parser.SetTitle(title)
 			}
 			select {
@@ -75,9 +75,9 @@ func main() {
 			fyne.Do(func() {
 				cols, rows := calcSize(window.Canvas().Size())
 				if cols != lastCols || rows != lastRows {
-					if cols != buffer.Width || rows != buffer.Height {
+					if cols != vt.Width() || rows != vt.Height() {
 						go func(c, r int) {
-							buffer.Resize(c, r)
+							vt.Resize(c, r)
 							ptym.Resize(c, r)
 							fyne.Do(func() {
 								termWidget.Refresh()

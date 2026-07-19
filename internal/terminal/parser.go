@@ -45,19 +45,15 @@ type Parser struct {
 	params  []int
 	buf     []byte
 	utf8Buf []byte
-	buffer  *Buffer
+	vt      *VirtualTerminal
 
 	currentFg    Color
 	currentBg    Color
 	currentAttrs Attributes
 
-	savedX int
-	savedY int
-
 	paramStarted bool
 	privateMode   bool
 	TitleHandler  func(string)
-	pendingTitle  string
 }
 
 const (
@@ -70,10 +66,10 @@ const (
 	stateOSC
 )
 
-func NewParser(buf *Buffer) *Parser {
+func NewParser(vt *VirtualTerminal) *Parser {
 	return &Parser{
 		state:     stateGround,
-		buffer:    buf,
+		vt:        vt,
 		params:    make([]int, 0, 16),
 		currentFg: ColorDefault,
 		currentBg: ColorDefault,
@@ -81,23 +77,17 @@ func NewParser(buf *Buffer) *Parser {
 }
 
 func (p *Parser) Parse(data []byte) {
-	p.buffer.mu.Lock()
+	p.vt.mu.Lock()
 	for _, b := range data {
 		p.parseByte(byte(b))
 	}
-	p.buffer.mu.Unlock()
+	p.vt.mu.Unlock()
 }
 
 func (p *Parser) SetTitle(title string) {
 	if p.TitleHandler != nil {
 		p.TitleHandler(title)
 	}
-}
-
-func (p *Parser) PendingTitle() string {
-	t := p.pendingTitle
-	p.pendingTitle = ""
-	return t
 }
 
 func (p *Parser) parseByte(b byte) {
@@ -138,13 +128,13 @@ func (p *Parser) handleGround(b byte) {
 	case 0x07:
 		// Bell - ignore for now
 	case 0x08:
-		p.buffer.backspaceLocked()
+		p.vt.Backspace()
 	case 0x09:
-		p.buffer.tabLocked()
+		p.vt.Tab()
 	case 0x0A, 0x0B, 0x0C:
-		p.buffer.newlineLocked()
+		p.vt.LineFeed()
 	case 0x0D:
-		p.buffer.CursorX = 0
+		p.vt.CarriageReturn()
 	case 0x7F:
 		// Delete - ignore
 	default:
@@ -168,20 +158,19 @@ func (p *Parser) handleEscape(b byte) {
 		p.state = stateOSC
 		p.buf = p.buf[:0]
 	case '7':
-		p.savedX = p.buffer.CursorX
-		p.savedY = p.buffer.CursorY
+		p.vt.SaveCursor()
 		p.state = stateGround
 	case '8':
-		p.buffer.moveCursorLocked(p.savedX, p.savedY)
+		p.vt.RestoreCursor()
 		p.state = stateGround
 	case 'D':
-		p.buffer.moveDownLocked(1)
+		p.vt.CursorDownLine(1)
 		p.state = stateGround
 	case 'M':
-		p.buffer.moveUpLocked(1)
+		p.vt.CursorUpLine(1)
 		p.state = stateGround
 	case 'c':
-		p.buffer.clearLocked()
+		p.vt.Clear()
 		p.currentFg = ColorDefault
 		p.currentBg = ColorDefault
 		p.currentAttrs = Attributes{}
@@ -235,7 +224,7 @@ func (p *Parser) executeOSC() {
 
 	switch oscType {
 	case 0, 1, 2:
-		p.pendingTitle = title
+		p.vt.SetPendingTitle(title)
 	}
 }
 
@@ -316,67 +305,44 @@ func (p *Parser) executeCSI(cmd byte, params []int) {
 	case 'H', 'f':
 		y := getParam(0, 1)
 		x := getParam(1, 1)
-		p.buffer.moveCursorLocked(x-1, y-1)
+		p.vt.CursorPosition(x, y)
 	case 'A':
-		p.buffer.moveUpLocked(getParam(0, 1))
+		p.vt.CursorUp(getParam(0, 1))
 	case 'B':
-		p.buffer.moveDownLocked(getParam(0, 1))
+		p.vt.CursorDown(getParam(0, 1))
 	case 'C':
-		p.buffer.moveRightLocked(getParam(0, 1))
+		p.vt.CursorRight(getParam(0, 1))
 	case 'D':
-		p.buffer.moveLeftLocked(getParam(0, 1))
-	case 'J':
-		mode := getParam(0, 0)
-		switch mode {
-		case 0:
-			p.buffer.clearToEndLocked()
-		case 1:
-			p.buffer.clearToBeginningLocked()
-		case 2, 3:
-			p.buffer.clearLocked()
-		}
-	case 'K':
-		mode := getParam(0, 0)
-		switch mode {
-		case 0:
-			p.buffer.clearToEndLocked()
-		case 1:
-			p.buffer.clearToBeginningLocked()
-		case 2:
-			p.buffer.clearLineLocked()
-		}
-	case 'L':
-		// InsertLines — TODO Phase 3
-	case 'M':
-		// DeleteLines — TODO Phase 3
-	case 'P':
-		// DeleteChars — TODO Phase 3
-	case '@':
-		// InsertChars — TODO Phase 3
-	case 'S':
-		// ScrollUp — TODO Phase 3
-	case 'T':
-		// ScrollDown — TODO Phase 3
-	case 'X':
-		// EraseChars — TODO Phase 3
-	case 'd':
-		p.buffer.CursorY = getParam(0, 1) - 1
-		if p.buffer.CursorY < 0 {
-			p.buffer.CursorY = 0
-		}
-		if p.buffer.CursorY >= p.buffer.Height {
-			p.buffer.CursorY = p.buffer.Height - 1
-		}
+		p.vt.CursorLeft(getParam(0, 1))
+	case 'E':
+		p.vt.CursorDownLine(getParam(0, 1))
+	case 'F':
+		p.vt.CursorUpLine(getParam(0, 1))
 	case 'G':
-		p.buffer.CursorX = getParam(0, 1) - 1
-		if p.buffer.CursorX < 0 {
-			p.buffer.CursorX = 0
-		}
-		if p.buffer.CursorX >= p.buffer.Width {
-			p.buffer.CursorX = p.buffer.Width - 1
-		}
+		p.vt.CarriageReturn()
+		p.vt.CursorRight(getParam(0, 1))
+	case 'J':
+		p.vt.EraseDisplay(getParam(0, 0))
+	case 'K':
+		p.vt.EraseLine(getParam(0, 0))
+	case 'L':
+		p.vt.InsertLines(max(getParam(0, 1), 1))
+	case 'M':
+		p.vt.DeleteLines(max(getParam(0, 1), 1))
+	case 'P':
+		p.vt.DeleteChars(max(getParam(0, 1), 1))
+	case '@':
+		p.vt.InsertChars(max(getParam(0, 1), 1))
+	case 'S':
+		p.vt.ScrollUp(max(getParam(0, 1), 1))
+	case 'T':
+		p.vt.ScrollDown(max(getParam(0, 1), 1))
+	case 'X':
+		p.vt.EraseChars(max(getParam(0, 1), 1))
+	case 'd':
+		p.vt.CursorPosition(1, getParam(0, 1))
 	case 'r':
-		// SetScrollRegion — TODO Phase 3
+		p.vt.SetScrollRegion(getParam(0, 1), getParam(1, p.vt.Height()))
 	case 'n':
 		// DeviceStatusReport — TODO
 	case 'c':
@@ -467,7 +433,7 @@ func (p *Parser) handleSGR(params []int) {
 }
 
 func (p *Parser) emitChar(ch rune) {
-	p.buffer.writeCharLocked(ch, p.currentFg, p.currentBg, p.currentAttrs)
+	p.vt.WriteChar(ch, p.currentFg, p.currentBg, p.currentAttrs)
 }
 
 func (p *Parser) executePrivateMode(cmd byte, params []int) {
@@ -479,19 +445,20 @@ func (p *Parser) executePrivateMode(cmd byte, params []int) {
 	}
 
 	mode := getParam(0, 0)
+	on := cmd == 'h'
 
-	switch {
-	case mode == 1:
+	switch mode {
+	case 1:
 		// DECCKM — TODO Phase 2
-	case mode == 7:
-		// AutoWrap — TODO Phase 2
-	case mode == 12, mode == 25:
-		// Cursor visibility — TODO Phase 2
-	case mode == 47 || mode == 1047 || mode == 1049:
-		// Alt screen — TODO Phase 2
-	case mode == 1048:
-		// Save/restore cursor — TODO Phase 2
-	case mode == 2004:
+	case 7:
+		p.vt.SetDECPrivateMode(7, on)
+	case 12, 25:
+		p.vt.SetDECPrivateMode(25, on)
+	case 47, 1047, 1049:
+		p.vt.SetDECPrivateMode(1049, on)
+	case 1048:
+		p.vt.SetDECPrivateMode(1048, on)
+	case 2004:
 		// Bracketed paste — TODO Phase 2
 	}
 }

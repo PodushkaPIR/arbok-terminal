@@ -26,7 +26,7 @@ func newRenderer(tw *TerminalWidget) *TerminalRenderer {
 		bg:     bg,
 	}
 
-	if tw.buffer != nil {
+	if tw.vt != nil {
 		r.buildCache()
 	}
 
@@ -34,8 +34,9 @@ func newRenderer(tw *TerminalWidget) *TerminalRenderer {
 }
 
 func (r *TerminalRenderer) buildCache() {
-	h := r.widget.buffer.Height
-	w := r.widget.buffer.Width
+	screen := r.widget.vt.CurrentScreen()
+	h := screen.Height
+	w := screen.Width
 
 	r.cellRects = make([][]*canvas.Rectangle, h)
 	r.cellTexts = make([][]*canvas.Text, h)
@@ -58,12 +59,13 @@ func (r *TerminalRenderer) buildCache() {
 }
 
 func (r *TerminalRenderer) Layout(size fyne.Size) {
-	if r.widget.buffer == nil {
+	if r.widget.vt == nil {
 		return
 	}
 
-	h := r.widget.buffer.Height
-	w := r.widget.buffer.Width
+	screen := r.widget.vt.CurrentScreen()
+	h := screen.Height
+	w := screen.Width
 	cacheH := len(r.cellTexts)
 	cacheW := 0
 	if cacheH > 0 {
@@ -106,12 +108,13 @@ func (r *TerminalRenderer) Objects() []fyne.CanvasObject {
 }
 
 func (r *TerminalRenderer) Refresh() {
-	if r.widget.buffer == nil {
+	if r.widget.vt == nil {
 		return
 	}
 
-	h := r.widget.buffer.Height
-	w := r.widget.buffer.Width
+	screen := r.widget.vt.CurrentScreen()
+	h := screen.Height
+	w := screen.Width
 	cacheH := len(r.cellTexts)
 	cacheW := 0
 	if cacheH > 0 {
@@ -130,7 +133,7 @@ func (r *TerminalRenderer) Refresh() {
 
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
-			cell := r.widget.buffer.Grid[y][x]
+			cell := screen.Grid[y][x]
 
 			if cell.Background == terminal.ColorDefault {
 				r.cellRects[y][x].FillColor = bgDef

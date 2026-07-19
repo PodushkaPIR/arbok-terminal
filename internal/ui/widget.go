@@ -11,7 +11,7 @@ import (
 type TerminalWidget struct {
 	widget.BaseWidget
 
-	buffer     *terminal.Buffer
+	vt         *terminal.VirtualTerminal
 	input      *input.Handler
 	FontSize   float32
 	CellWidth  float32
@@ -28,9 +28,9 @@ func WithCellSize(w, h float32) Option {
 	return func(tw *TerminalWidget) { tw.CellWidth = w; tw.CellHeight = h }
 }
 
-func New(buffer *terminal.Buffer, input *input.Handler, opts ...Option) *TerminalWidget {
+func New(vt *terminal.VirtualTerminal, input *input.Handler, opts ...Option) *TerminalWidget {
 	tw := &TerminalWidget{
-		buffer:     buffer,
+		vt:         vt,
 		input:      input,
 		FontSize:   14,
 		CellWidth:  9,
