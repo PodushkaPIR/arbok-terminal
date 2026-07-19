@@ -21,10 +21,7 @@ type TerminalRenderer struct {
 	prevGrid   [][]terminal.Cell
 	prevW, prevH int
 
-	dirtyLines    []bool
-	prevCursorX   int
-	prevCursorY   int
-	cursorActive  bool
+	dirtyLines []bool
 }
 
 func newRenderer(tw *TerminalWidget) *TerminalRenderer {
@@ -59,9 +56,6 @@ func (r *TerminalRenderer) buildCache() {
 	r.dirtyLines = make([]bool, h)
 	r.prevW = w
 	r.prevH = h
-	r.prevCursorX = -1
-	r.prevCursorY = -1
-	r.cursorActive = false
 
 	bgDef := theme.Color(theme.ColorNameBackground)
 
@@ -197,100 +191,14 @@ func (r *TerminalRenderer) Refresh() {
 
 	cursorX := screen.CursorX
 	cursorY := screen.CursorY
-	showCursor := screen.CursorVisible && cursorX >= 0 && cursorX < w && cursorY >= 0 && cursorY < h
-
-	if showCursor {
+	if screen.CursorVisible && cursorX >= 0 && cursorX < w && cursorY >= 0 && cursorY < h {
 		cellW := r.widget.CellWidth
 		cellH := r.widget.CellHeight
-
-		if r.cursorActive && (r.prevCursorX != cursorX || r.prevCursorY != cursorY) {
-			r.restoreCellAt(r.prevCursorX, r.prevCursorY, screen, bgDef)
-		}
-
-		r.invertCellAt(cursorX, cursorY, screen, bgDef)
-
 		r.cursor.Move(fyne.NewPos(float32(cursorX)*cellW, float32(cursorY)*cellH))
 		r.cursor.Resize(fyne.NewSize(cellW, cellH))
+		r.cursor.Show()
+	} else {
 		r.cursor.Hide()
-		r.prevCursorX = cursorX
-		r.prevCursorY = cursorY
-		r.cursorActive = true
-	} else if r.cursorActive {
-		r.restoreCellAt(r.prevCursorX, r.prevCursorY, screen, bgDef)
-		r.cursor.Hide()
-		r.cursorActive = false
-	}
-}
-
-func (r *TerminalRenderer) invertCellAt(x, y int, screen *terminal.Screen, bgDef color.Color) {
-	if x < 0 || x >= r.prevW || y < 0 || y >= r.prevH {
-		return
-	}
-	cell := screen.Grid[y][x]
-
-	isDefaultBg := cell.Background == terminal.ColorDefault
-	isDefaultFg := cell.Foreground == terminal.ColorDefault
-
-	var fg, bg color.RGBA
-	if isDefaultFg {
-		fg = color.RGBA{R: 255, G: 255, B: 255, A: 255}
-	} else {
-		fg = ColorToRGBA(cell.Foreground, bgDef)
-	}
-	if isDefaultBg {
-		bg = color.RGBA{R: 0, G: 0, B: 0, A: 255}
-	} else {
-		bg = ColorToRGBA(cell.Background, bgDef)
-	}
-
-	cursorBg := theme.Color(theme.ColorNameFocus)
-	if isDefaultBg && isDefaultFg {
-		r, g, b, _ := bgDef.RGBA()
-		fg = color.RGBA{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8), A: 255}
-		cr, cg, cb, _ := cursorBg.RGBA()
-		bg = color.RGBA{R: uint8(cr >> 8), G: uint8(cg >> 8), B: uint8(cb >> 8), A: 255}
-	}
-
-	r.cellRects[y][x].FillColor = fg
-	r.cellRects[y][x].Refresh()
-
-	ch := string(cell.Char)
-	if cell.Char == 0 || ch == "" {
-		ch = " "
-	}
-	r.cellTexts[y][x].Text = ch
-	r.cellTexts[y][x].Color = bg
-	r.cellTexts[y][x].Show()
-	r.cellTexts[y][x].Refresh()
-}
-
-func (r *TerminalRenderer) restoreCellAt(x, y int, screen *terminal.Screen, bgDef color.Color) {
-	if x < 0 || x >= r.prevW || y < 0 || y >= r.prevH {
-		return
-	}
-	cell := screen.Grid[y][x]
-
-	isDefaultBg := cell.Background == terminal.ColorDefault || (!cell.Background.Default && cell.Background.R == 0 && cell.Background.G == 0 && cell.Background.B == 0)
-	if isDefaultBg {
-		r.cellRects[y][x].FillColor = bgDef
-	} else {
-		r.cellRects[y][x].FillColor = ColorToRGBA(cell.Background, bgDef)
-	}
-	r.cellRects[y][x].Refresh()
-
-	isSpace := cell.Char == 0 || cell.Char == ' '
-	if isSpace {
-		r.cellTexts[y][x].Hide()
-	} else {
-		isDefaultFg := cell.Foreground == terminal.ColorDefault || (!cell.Foreground.Default && cell.Foreground.R == 255 && cell.Foreground.G == 255 && cell.Foreground.B == 255)
-		if isDefaultFg {
-			r.cellTexts[y][x].Color = color.White
-		} else {
-			r.cellTexts[y][x].Color = ColorToRGBA(cell.Foreground, bgDef)
-		}
-		r.cellTexts[y][x].Text = string(cell.Char)
-		r.cellTexts[y][x].Show()
-		r.cellTexts[y][x].Refresh()
 	}
 }
 
