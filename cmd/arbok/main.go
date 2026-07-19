@@ -119,14 +119,9 @@ func main() {
 
 	go func() {
 		var lastGeneration uint64
-		refreshTimer := time.NewTimer(0)
-		<-refreshTimer.C // drain initial fire
-		refreshTimer.Stop()
-
 		for {
 			select {
 			case <-ctx.Done():
-				refreshTimer.Stop()
 				return
 			case <-refreshCh:
 				gen := vt.Generation()
@@ -134,8 +129,6 @@ func main() {
 					continue
 				}
 				lastGeneration = gen
-				refreshTimer.Reset(16 * time.Millisecond)
-			case <-refreshTimer.C:
 				fyne.Do(func() {
 					termWidget.Refresh()
 					window.Canvas().Refresh(termWidget)

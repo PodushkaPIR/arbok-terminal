@@ -13,6 +13,7 @@ import (
 type TerminalRenderer struct {
 	widget    *TerminalWidget
 	bg        *canvas.Rectangle
+	cursor    *canvas.Rectangle
 	cellRects [][]*canvas.Rectangle
 	cellTexts [][]*canvas.Text
 	objects   []fyne.CanvasObject
@@ -23,10 +24,13 @@ type TerminalRenderer struct {
 
 func newRenderer(tw *TerminalWidget) *TerminalRenderer {
 	bg := canvas.NewRectangle(theme.Color(theme.ColorNameBackground))
+	cursor := canvas.NewRectangle(color.RGBA{R: 255, G: 255, B: 255, A: 255})
+	cursor.Hide()
 
 	r := &TerminalRenderer{
 		widget: tw,
 		bg:     bg,
+		cursor: cursor,
 	}
 
 	if tw.vt != nil {
@@ -43,19 +47,21 @@ func (r *TerminalRenderer) buildCache() {
 
 	r.cellRects = make([][]*canvas.Rectangle, h)
 	r.cellTexts = make([][]*canvas.Text, h)
-	r.objects = make([]fyne.CanvasObject, 0, 1+h*w*2)
+	r.objects = make([]fyne.CanvasObject, 0, 2+h*w*2)
 	r.objects = append(r.objects, r.bg)
 
 	r.prevGrid = make([][]terminal.Cell, h)
 	r.prevW = w
 	r.prevH = h
 
+	bgDef := theme.Color(theme.ColorNameBackground)
+
 	for y := 0; y < h; y++ {
 		r.cellRects[y] = make([]*canvas.Rectangle, w)
 		r.cellTexts[y] = make([]*canvas.Text, w)
 		r.prevGrid[y] = make([]terminal.Cell, w)
 		for x := 0; x < w; x++ {
-			rect := canvas.NewRectangle(color.RGBA{0, 0, 0, 255})
+			rect := canvas.NewRectangle(bgDef)
 			text := canvas.NewText(" ", color.White)
 			text.TextSize = r.widget.FontSize
 			text.TextStyle.Monospace = true
@@ -64,6 +70,7 @@ func (r *TerminalRenderer) buildCache() {
 			r.objects = append(r.objects, rect, text)
 		}
 	}
+	r.objects = append(r.objects, r.cursor)
 }
 
 func (r *TerminalRenderer) Layout(size fyne.Size) {
@@ -98,6 +105,13 @@ func (r *TerminalRenderer) Layout(size fyne.Size) {
 			r.cellTexts[y][x].Resize(sz)
 		}
 	}
+
+	cursorX := screen.CursorX
+	cursorY := screen.CursorY
+	if cursorX >= 0 && cursorX < w && cursorY >= 0 && cursorY < h {
+		r.cursor.Move(fyne.NewPos(float32(cursorX)*cellW, float32(cursorY)*cellH))
+		r.cursor.Resize(fyne.NewSize(cellW, cellH))
+	}
 }
 
 func (r *TerminalRenderer) MinSize() fyne.Size {
@@ -112,6 +126,9 @@ func (r *TerminalRenderer) Refresh() {
 	if r.widget.vt == nil {
 		return
 	}
+
+	r.widget.vt.Lock()
+	defer r.widget.vt.Unlock()
 
 	screen := r.widget.vt.CurrentScreen()
 	h := screen.Height
@@ -134,18 +151,20 @@ func (r *TerminalRenderer) Refresh() {
 				continue
 			}
 
-			if cell.Background == terminal.ColorDefault {
+			isDefaultBg := cell.Background == terminal.ColorDefault || (!cell.Background.Default && cell.Background.R == 0 && cell.Background.G == 0 && cell.Background.B == 0)
+			if isDefaultBg {
 				r.cellRects[y][x].FillColor = bgDef
 			} else {
 				r.cellRects[y][x].FillColor = ColorToRGBA(cell.Background, bgDef)
 			}
 
 			ch := string(cell.Char)
-			if ch == "" {
+			if cell.Char == 0 || ch == "" {
 				ch = " "
 			}
 			r.cellTexts[y][x].Text = ch
-			if cell.Foreground == terminal.ColorDefault {
+			isDefaultFg := cell.Foreground == terminal.ColorDefault || (!cell.Foreground.Default && cell.Foreground.R == 255 && cell.Foreground.G == 255 && cell.Foreground.B == 255)
+			if isDefaultFg {
 				r.cellTexts[y][x].Color = color.White
 			} else {
 				r.cellTexts[y][x].Color = ColorToRGBA(cell.Foreground, bgDef)
@@ -159,6 +178,18 @@ func (r *TerminalRenderer) Refresh() {
 	}
 
 	r.bg.Refresh()
+
+	cursorX := screen.CursorX
+	cursorY := screen.CursorY
+	if screen.CursorVisible && cursorX >= 0 && cursorX < w && cursorY >= 0 && cursorY < h {
+		cellW := r.widget.CellWidth
+		cellH := r.widget.CellHeight
+		r.cursor.Move(fyne.NewPos(float32(cursorX)*cellW, float32(cursorY)*cellH))
+		r.cursor.Resize(fyne.NewSize(cellW, cellH))
+		r.cursor.Show()
+	} else {
+		r.cursor.Hide()
+	}
 }
 
 func (r *TerminalRenderer) Destroy() {}
