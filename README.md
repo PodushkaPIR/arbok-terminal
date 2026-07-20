@@ -48,13 +48,7 @@ ln -sf /usr/lib64/libXxf86vm.so.1 ~/lib/libXxf86vm.so
 ## Building
 
 ```bash
-./build.sh
-```
-
-Or manually:
-```bash
-export CGO_LDFLAGS="-L$HOME/lib"  # if symlink was created
-go build -o arbok ./cmd/arbok
+./run.sh build
 ```
 
 ## Running
@@ -69,15 +63,18 @@ go build -o arbok ./cmd/arbok
 ./arbok-launcher.sh
 ```
 
-The launcher script handles XWayland auth automatically.
-
 ## Testing
 
 ```bash
-go test ./internal/terminal/ -v
+./run.sh test
 ```
 
-90+ tests covering screen operations, ANSI parser, and VirtualTerminal lifecycle.
+All checks (vet + fmt + test):
+```bash
+./run.sh all
+```
+
+Available commands: `build`, `test`, `vet`, `fmt`, `lint`, `all`.
 
 ## Project Structure
 

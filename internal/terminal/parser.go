@@ -56,8 +56,8 @@ type Parser struct {
 	currentAttrs Attributes
 
 	paramStarted bool
-	privateMode   bool
-	TitleHandler  func(string)
+	privateMode  bool
+	TitleHandler func(string)
 }
 
 const (

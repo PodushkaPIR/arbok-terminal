@@ -7,11 +7,11 @@ import (
 )
 
 type VirtualTerminal struct {
-	mu       sync.Mutex
-	main     *Screen
-	alt      *Screen
+	mu         sync.Mutex
+	main       *Screen
+	alt        *Screen
 	scrollback *ScrollbackBuffer
-	modes    DECModeSet
+	modes      DECModeSet
 
 	scrollOffset int
 
@@ -21,24 +21,24 @@ type VirtualTerminal struct {
 	generation atomic.Uint64
 
 	onCursorKeyMode func(app bool)
-	onResponse       func(data []byte)
+	onResponse      func(data []byte)
 }
 
 type DECModeSet struct {
-	AltScreen     bool
-	CursorVisible bool
-	CursorBlink   bool
-	AutoWrap      bool
-	OriginMode    bool
-	InsertMode    bool
+	AltScreen      bool
+	CursorVisible  bool
+	CursorBlink    bool
+	AutoWrap       bool
+	OriginMode     bool
+	InsertMode     bool
 	BracketedPaste bool
-	TabWidth      int
+	TabWidth       int
 }
 
 func NewVirtualTerminal(width, height int) *VirtualTerminal {
 	return &VirtualTerminal{
-		main: NewScreen(width, height),
-		alt:  NewScreen(width, height),
+		main:       NewScreen(width, height),
+		alt:        NewScreen(width, height),
 		scrollback: NewScrollbackBuffer(1000),
 		modes: DECModeSet{
 			CursorVisible: true,
@@ -61,7 +61,7 @@ func (vt *VirtualTerminal) Unlock() { vt.mu.Unlock() }
 func (vt *VirtualTerminal) Width() int  { return vt.main.Width }
 func (vt *VirtualTerminal) Height() int { return vt.main.Height }
 
-func (vt *VirtualTerminal) IsDirty() bool     { return vt.dirty.Load() }
+func (vt *VirtualTerminal) IsDirty() bool      { return vt.dirty.Load() }
 func (vt *VirtualTerminal) ClearDirty()        { vt.dirty.Store(false) }
 func (vt *VirtualTerminal) Generation() uint64 { return vt.generation.Load() }
 

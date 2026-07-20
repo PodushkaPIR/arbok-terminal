@@ -8,7 +8,7 @@ import (
 
 var (
 	globalLogger *slog.Logger
-	logLevel    = new(slog.LevelVar)
+	logLevel     = new(slog.LevelVar)
 )
 
 func Init(level string) {

@@ -12,12 +12,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: '1.23'
           cache: true
 
       - name: Install dependencies
@@ -34,16 +34,19 @@ jobs:
             libxxf86vm-dev \
             libgl1-mesa-dev
 
-      - name: Build
-        run: go build -v ./...
-
       - name: Vet
         run: go vet ./...
 
       - name: Check formatting
         run: |
           if [ -n "$(gofmt -l .)" ]; then
-            echo "Formatting issues found:"
+            echo "Formatting issues:"
             gofmt -l .
             exit 1
           fi
+
+      - name: Build
+        run: go build -v ./...
+
+      - name: Test
+        run: go test ./internal/terminal/ -v -count=1

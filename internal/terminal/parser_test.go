@@ -186,9 +186,9 @@ func TestParser_cursorHorizontalAbsolute(t *testing.T) {
 
 func TestParser_eraseDisplay(t *testing.T) {
 	tests := []struct {
-		name   string
-		seq    string
-		check  func(t *testing.T, s *Screen)
+		name  string
+		seq   string
+		check func(t *testing.T, s *Screen)
 	}{
 		{
 			name: "erase below cursor",
@@ -356,7 +356,7 @@ func TestParser_saveRestoreCursor(t *testing.T) {
 	vt := newTestVT()
 	p := NewParser(vt)
 
-	parseStr(p, "AB\x1b7")    // save cursor
+	parseStr(p, "AB\x1b7")   // save cursor
 	parseStr(p, "\x1b[1;1H") // move to home
 	parseStr(p, "\x1b8")     // restore cursor
 

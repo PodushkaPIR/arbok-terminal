@@ -18,7 +18,7 @@ type TerminalRenderer struct {
 	cellTexts [][]*canvas.Text
 	objects   []fyne.CanvasObject
 
-	prevGrid   [][]terminal.Cell
+	prevGrid     [][]terminal.Cell
 	prevW, prevH int
 
 	dirtyLines []bool

@@ -24,11 +24,11 @@ type Screen struct {
 	Height int
 	Grid   [][]Cell
 
-	CursorX      int
-	CursorY      int
+	CursorX       int
+	CursorY       int
 	CursorVisible bool
-	SavedX       int
-	SavedY       int
+	SavedX        int
+	SavedY        int
 
 	ScrollTop    int
 	ScrollBottom int
@@ -36,11 +36,11 @@ type Screen struct {
 
 func NewScreen(width, height int) *Screen {
 	s := &Screen{
-		Width:        width,
-		Height:       height,
+		Width:         width,
+		Height:        height,
 		CursorVisible: true,
-		ScrollTop:    0,
-		ScrollBottom: height - 1,
+		ScrollTop:     0,
+		ScrollBottom:  height - 1,
 	}
 	s.Grid = make([][]Cell, height)
 	for y := 0; y < height; y++ {
