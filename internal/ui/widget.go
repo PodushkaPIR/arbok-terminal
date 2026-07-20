@@ -93,19 +93,19 @@ func (tw *TerminalWidget) TypedKey(event *fyne.KeyEvent) {
 }
 
 func (tw *TerminalWidget) Scrolled(ev *fyne.ScrollEvent) {
-	tw.vt.Lock()
-	defer tw.vt.Unlock()
-
 	lines := int(ev.Scrolled.DY)
 	if lines == 0 {
 		return
 	}
 
+	tw.vt.Lock()
 	if lines > 0 {
 		tw.vt.ScrollUpView(lines)
 	} else {
 		tw.vt.ScrollDownView(-lines)
 	}
+	tw.vt.Unlock()
+
 	tw.Refresh()
 }
 

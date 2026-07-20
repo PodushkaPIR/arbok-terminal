@@ -400,16 +400,24 @@ func (vt *VirtualTerminal) IsAltScreen() bool {
 }
 
 func (vt *VirtualTerminal) DisplayLine(y int) []Cell {
+	sbLen := vt.scrollback.Len()
 	h := vt.main.Height
+
 	if vt.scrollOffset == 0 {
 		return vt.CurrentScreen().Grid[y]
 	}
-	fromBottom := h - y
-	if fromBottom <= vt.scrollOffset {
-		idx := vt.scrollOffset - fromBottom
+
+	idx := sbLen - vt.scrollOffset + y
+	if idx >= 0 && idx < sbLen {
 		line := vt.scrollback.Get(idx)
 		if line != nil {
 			return line
+		}
+	}
+	if idx >= sbLen {
+		screenY := idx - sbLen
+		if screenY >= 0 && screenY < h {
+			return vt.CurrentScreen().Grid[screenY]
 		}
 	}
 	return vt.CurrentScreen().Grid[y]
