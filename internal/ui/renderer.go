@@ -22,6 +22,8 @@ type TerminalRenderer struct {
 	prevW, prevH int
 
 	dirtyLines []bool
+
+	prevScrollOffset int
 }
 
 func newRenderer(tw *TerminalWidget) *TerminalRenderer {
@@ -145,11 +147,19 @@ func (r *TerminalRenderer) Refresh() {
 		w = r.prevW
 	}
 
+	scrollOff := r.widget.vt.ScrollOffset()
+	if scrollOff != r.prevScrollOffset {
+		for i := range r.dirtyLines {
+			r.dirtyLines[i] = true
+		}
+		r.prevScrollOffset = scrollOff
+	}
+
 	bgDef := theme.Color(theme.ColorNameBackground)
 
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
-			cell := screen.Grid[y][x]
+			cell := r.widget.vt.DisplayLine(y)[x]
 			prev := r.prevGrid[y][x]
 
 			if cell == prev {
@@ -191,7 +201,7 @@ func (r *TerminalRenderer) Refresh() {
 
 	cursorX := screen.CursorX
 	cursorY := screen.CursorY
-	if screen.CursorVisible && cursorX >= 0 && cursorX < w && cursorY >= 0 && cursorY < h {
+	if !r.widget.vt.IsScrolling() && screen.CursorVisible && cursorX >= 0 && cursorX < w && cursorY >= 0 && cursorY < h {
 		cellW := r.widget.CellWidth
 		cellH := r.widget.CellHeight
 		r.cursor.Move(fyne.NewPos(float32(cursorX)*cellW, float32(cursorY)*cellH))

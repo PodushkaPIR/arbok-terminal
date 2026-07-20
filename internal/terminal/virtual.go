@@ -13,6 +13,8 @@ type VirtualTerminal struct {
 	scrollback *ScrollbackBuffer
 	modes    DECModeSet
 
+	scrollOffset int
+
 	pendingTitle string
 
 	dirty      atomic.Bool
@@ -364,6 +366,53 @@ func (vt *VirtualTerminal) ScrollbackLines() int {
 
 func (vt *VirtualTerminal) ScrollbackLine(i int) []Cell {
 	return vt.scrollback.Get(i)
+}
+
+func (vt *VirtualTerminal) ScrollUpView(lines int) {
+	sbLen := vt.scrollback.Len()
+	vt.scrollOffset += lines
+	if vt.scrollOffset > sbLen {
+		vt.scrollOffset = sbLen
+	}
+}
+
+func (vt *VirtualTerminal) ScrollDownView(lines int) {
+	vt.scrollOffset -= lines
+	if vt.scrollOffset < 0 {
+		vt.scrollOffset = 0
+	}
+}
+
+func (vt *VirtualTerminal) ResetScroll() {
+	vt.scrollOffset = 0
+}
+
+func (vt *VirtualTerminal) ScrollOffset() int {
+	return vt.scrollOffset
+}
+
+func (vt *VirtualTerminal) IsScrolling() bool {
+	return vt.scrollOffset > 0
+}
+
+func (vt *VirtualTerminal) IsAltScreen() bool {
+	return vt.modes.AltScreen
+}
+
+func (vt *VirtualTerminal) DisplayLine(y int) []Cell {
+	h := vt.main.Height
+	if vt.scrollOffset == 0 {
+		return vt.CurrentScreen().Grid[y]
+	}
+	fromBottom := h - y
+	if fromBottom <= vt.scrollOffset {
+		idx := vt.scrollOffset - fromBottom
+		line := vt.scrollback.Get(idx)
+		if line != nil {
+			return line
+		}
+	}
+	return vt.CurrentScreen().Grid[y]
 }
 
 type ScrollbackBuffer struct {

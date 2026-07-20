@@ -76,6 +76,7 @@ func main() {
 					return
 				}
 				parser.Parse(data)
+				vt.ResetScroll()
 				if title := vt.PendingTitle(); title != "" {
 					parser.SetTitle(title)
 				}
@@ -139,7 +140,10 @@ func main() {
 		}
 	}()
 
-	inputH.SetOnInput(func(data []byte) { ptym.Write(data) })
+	inputH.SetOnInput(func(data []byte) {
+		vt.ResetScroll()
+		ptym.Write(data)
+	})
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)

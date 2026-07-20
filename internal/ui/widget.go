@@ -66,9 +66,47 @@ func (tw *TerminalWidget) TypedRune(r rune) {
 }
 
 func (tw *TerminalWidget) TypedKey(event *fyne.KeyEvent) {
+	if event.Name == fyne.KeyPageUp && !tw.vt.IsAltScreen() {
+		tw.vt.Lock()
+		tw.vt.ScrollUpView(tw.vt.Height())
+		tw.vt.Unlock()
+		tw.Refresh()
+		return
+	}
+	if event.Name == fyne.KeyPageDown && !tw.vt.IsAltScreen() {
+		tw.vt.Lock()
+		tw.vt.ScrollDownView(tw.vt.Height())
+		tw.vt.Unlock()
+		tw.Refresh()
+		return
+	}
+	if event.Name == fyne.KeyEscape && tw.vt.IsScrolling() {
+		tw.vt.Lock()
+		tw.vt.ResetScroll()
+		tw.vt.Unlock()
+		tw.Refresh()
+		return
+	}
 	if tw.input != nil {
 		tw.input.HandleKey(event)
 	}
+}
+
+func (tw *TerminalWidget) Scrolled(ev *fyne.ScrollEvent) {
+	tw.vt.Lock()
+	defer tw.vt.Unlock()
+
+	lines := int(ev.Scrolled.DY)
+	if lines == 0 {
+		return
+	}
+
+	if lines > 0 {
+		tw.vt.ScrollUpView(lines)
+	} else {
+		tw.vt.ScrollDownView(-lines)
+	}
+	tw.Refresh()
 }
 
 func (tw *TerminalWidget) FocusGained() {}
