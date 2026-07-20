@@ -158,8 +158,13 @@ func (r *TerminalRenderer) Refresh() {
 	bgDef := theme.Color(theme.ColorNameBackground)
 
 	for y := 0; y < h; y++ {
+		line := r.widget.vt.DisplayLine(y)
+		lineLen := len(line)
 		for x := 0; x < w; x++ {
-			cell := r.widget.vt.DisplayLine(y)[x]
+			var cell terminal.Cell
+			if x < lineLen {
+				cell = line[x]
+			}
 			prev := r.prevGrid[y][x]
 
 			if cell == prev {
