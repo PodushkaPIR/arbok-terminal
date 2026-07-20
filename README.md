@@ -8,7 +8,7 @@ A terminal emulator written in Go with Fyne GUI framework. Aims for xterm-256col
 - **256-color palette**: Standard xterm-256color + 24-bit true color (RGB)
 - **SGR attributes**: Bold, dim, italic, underline, blink, reverse, strikethrough
 - **Alt screen buffer**: `\e[?1049h/l` for vim, tmux, htop
-- **Scrollback**: 1000-line ring buffer, populated on scroll
+- **Scrollback**: 1000-line ring buffer with mouse wheel and PageUp/PageDown navigation
 - **Cell-level diff rendering**: Only changed cells are redrawn
 - **Dynamic resize**: Window resize updates terminal size via polling
 - **Graceful shutdown**: Context-based goroutine lifecycle, SIGHUP → wait → SIGKILL
@@ -97,5 +97,3 @@ internal/ui/
   ├── renderer.go              ← Cell-level diff renderer
   └── colors.go                ← Color → RGBA
 ```
-
-See `docs/architecture.md` for detailed architecture documentation.
