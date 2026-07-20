@@ -1,4 +1,4 @@
-# Arbok Terminal
+# Arbok Terminal <img src="images/arbok.png" width="50">
 
 Terminal emulator in Go + Fyne. xterm-256color compatible — vim, tmux, htop, less work.
 
